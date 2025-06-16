@@ -1,25 +1,25 @@
 #include <config.h>
 
 #include <cmath>
-#include <S4.h>
+#include <RS.h>
 #include "RNP/TBLAS.h"
 #include "RNP/LinearSolve.h"
 #include "fmm.h"
 #include <limits>
 
-int FMMGetEpsilon_ClosedForm(const S4_Simulation *S, const S4_Layer *L, const int n, std::complex<double> *Epsilon2, std::complex<double> *Epsilon_inv){
+int FMMGetEpsilon_ClosedForm(const RS_Simulation *S, const RS_Layer *L, const int n, std::complex<double> *Epsilon2, std::complex<double> *Epsilon_inv){
 	const int n2 = 2*n;
 	const int *G = S->G;
 	const int ndim = (0 == S->Lr[2] && 0 == S->Lr[3]) ? 1 : 2;
-	double *ivalues = (double*)S4_malloc(sizeof(double)*(2+10)*(L->pattern.nshapes+1));
+	double *ivalues = (double*)RS_malloc(sizeof(double)*(2+10)*(L->pattern.nshapes+1));
 	double *values = ivalues + 2*(L->pattern.nshapes+1);
 
-	S4_TRACE("I  Closed-form epsilon\n");
+	RS_TRACE("I  Closed-form epsilon\n");
 
 	// Get all the dielectric tensors
 	bool have_tensor = false;
 	for(int i = -1; i < L->pattern.nshapes; ++i){
-		const S4_Material *M;
+		const RS_Material *M;
 		if(-1 == i){
 			M = &S->material[L->material];
 		}else{
@@ -42,7 +42,7 @@ int FMMGetEpsilon_ClosedForm(const S4_Simulation *S, const S4_Layer *L, const in
 	int pwr = S->options.lanczos_smoothing_power;
 	if(S->options.use_Lanczos_smoothing){
 		mp1 = GetLanczosSmoothingOrder(S);
-		S4_TRACE("I   Lanczos smoothing order = %f\n", mp1);
+		RS_TRACE("I   Lanczos smoothing order = %f\n", mp1);
 		mp1 *= S->options.lanczos_smoothing_width;
 	}
 
@@ -78,7 +78,7 @@ int FMMGetEpsilon_ClosedForm(const S4_Simulation *S, const S4_Layer *L, const in
 				Epsilon2[i+j*n2] = std::complex<double>(ft[0],ft[1]);
 			}
 		}
-		S4_TRACE("I  Epsilon(0,0) = %f,%f [omega=%f]\n", Epsilon2[0].real(), Epsilon2[0].imag(), S->omega[0]);
+		RS_TRACE("I  Epsilon(0,0) = %f,%f [omega=%f]\n", Epsilon2[0].real(), Epsilon2[0].imag(), S->omega[0]);
 
 		if(!S->options.use_polarization_basis){ // ordinary Laurent's rule
 			if(0 == S->Lr[2] && 0 == S->Lr[3]){ // 1D proper FFF rule
@@ -139,7 +139,7 @@ int FMMGetEpsilon_ClosedForm(const S4_Simulation *S, const S4_Layer *L, const in
 	}else{ // have tensor dielectric
 		const int ldv = 2*(1+L->pattern.nshapes);
 		for(int i = -1; i < L->pattern.nshapes; ++i){
-			const S4_Material *M;
+			const RS_Material *M;
 			if(-1 == i){
 				M = &S->material[L->material];
 			}else{
@@ -230,7 +230,7 @@ int FMMGetEpsilon_ClosedForm(const S4_Simulation *S, const S4_Layer *L, const in
 		}
 	}
 
-	S4_free(ivalues);
+	RS_free(ivalues);
 
 	return 0;
 }

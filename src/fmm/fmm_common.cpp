@@ -2,14 +2,14 @@
 
 #include <cstdio>
 #include <cmath>
-#include <S4.h>
+#include <RS.h>
 #include "fmm.h"
 
 #include <limits>
 
 extern "C" double Jinc(double x);
 
-double GetLanczosSmoothingOrder(const S4_Simulation *S){
+double GetLanczosSmoothingOrder(const RS_Simulation *S){
 	double Lkuv = hypot(
 		S->G[2*(S->n_G-1)+0]*S->Lk[0] + S->G[2*(S->n_G-1)+1]*S->Lk[2],
 		S->G[2*(S->n_G-1)+0]*S->Lk[1] + S->G[2*(S->n_G-1)+1]*S->Lk[3]

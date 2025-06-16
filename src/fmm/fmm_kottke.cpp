@@ -3,7 +3,7 @@
 #include <cstdlib>
 #include <cstring>
 #include <cmath>
-#include <S4.h>
+#include <RS.h>
 #include "RNP/TBLAS.h"
 #include "RNP/LinearSolve.h"
 #include "fmm.h"
@@ -27,7 +27,7 @@ static void sym2x2rot(const std::complex<double> M[4], const double nvec[2], std
 	RMR[2] = nvec[0]*MR[2] - nvec[1]*MR[0]; RMR[3] = nvec[0]*MR[3] - nvec[1]*MR[1];
 }
 
-int FMMGetEpsilon_Kottke(const S4_Simulation *S, const S4_Layer *L, const int n, std::complex<double> *Epsilon2, std::complex<double> *Epsilon_inv){
+int FMMGetEpsilon_Kottke(const RS_Simulation *S, const RS_Layer *L, const int n, std::complex<double> *Epsilon2, std::complex<double> *Epsilon_inv){
 	const int n2 = 2*n;
 	const int *G = S->G;
 
@@ -42,13 +42,13 @@ int FMMGetEpsilon_Kottke(const S4_Simulation *S, const S4_Layer *L, const int n,
 		ngrid[i] *= S->options.resolution;
 		ngrid[i] = fft_next_fast_size(ngrid[i]);
 	}
-	S4_TRACE("I  Subpixel smoothing on %d x %d grid\n", ngrid[0], ngrid[1]);
+	RS_TRACE("I  Subpixel smoothing on %d x %d grid\n", ngrid[0], ngrid[1]);
 	const int ng2 = ngrid[0]*ngrid[1];
 	const double ing2 = 1./(double)ng2;
 	// The grid needs to hold 5 matrix elements: xx,xy,yx,yy,zz
 	// We actually make 5 different grids to facilitate the fft routines
 
-	//std::complex<double> *work = (std::complex<double>*)S4_malloc(sizeof(std::complex<double>)*(6*ng2));
+	//std::complex<double> *work = (std::complex<double>*)RS_malloc(sizeof(std::complex<double>)*(6*ng2));
 	std::complex<double> *work = fft_alloc_complex(6*ng2);
 	std::complex<double>*fxx = work;
 	std::complex<double>*fxy = fxx + ng2;
@@ -57,7 +57,7 @@ int FMMGetEpsilon_Kottke(const S4_Simulation *S, const S4_Layer *L, const int n,
 	std::complex<double>*fzz = fyy + ng2;
 	std::complex<double>*Fto = fzz + ng2;
 //memset(work, 0, sizeof(std::complex<double>) * 6*ng2);
-	double *discval = (double*)S4_malloc(sizeof(double)*(L->pattern.nshapes+1));
+	double *discval = (double*)RS_malloc(sizeof(double)*(L->pattern.nshapes+1));
 
 	fft_plan plans[5];
 	for(int i = 0; i <= 4; ++i){
@@ -79,11 +79,11 @@ int FMMGetEpsilon_Kottke(const S4_Simulation *S, const S4_Layer *L, const int n,
 					++nnz;
 				}
 			}
-//S4_TRACE("I   %d,%d nnz = %d\n", ii[0], ii[1], nnz);
+//RS_TRACE("I   %d,%d nnz = %d\n", ii[0], ii[1], nnz);
 
 			if(nnz < 2){ // just one material
 //fprintf(stderr, "%d\t%d\t0\t0\n", ii[0], ii[1]);
-				const S4_Material *M;
+				const RS_Material *M;
 				if(0 == imat[0]){
 					M = &S->material[L->material];
 				}else{
@@ -124,7 +124,7 @@ int FMMGetEpsilon_Kottke(const S4_Simulation *S, const S4_Layer *L, const int n,
 					// Get the two tensors
 					std::complex<double> abcde[2][5];
 					for(int i = 0; i < 2; ++i){
-						const S4_Material *M;
+						const RS_Material *M;
 						if(0 == imat[i]){
 							M = &S->material[L->material];
 						}else{
@@ -194,7 +194,7 @@ int FMMGetEpsilon_Kottke(const S4_Simulation *S, const S4_Layer *L, const int n,
 					for(int i = 0; i <= L->pattern.nshapes; ++i){
 						if(0 == discval[i]){ continue; }
 						int j = i-1;
-						const S4_Material *M;
+						const RS_Material *M;
 						if(-1 == j){
 							M = &S->material[L->material];
 						}else{
@@ -276,8 +276,8 @@ fzz[si1+si0*ngrid[1]].real(), fzz[si1+si0*ngrid[1]].imag()
 		fft_plan_destroy(plans[i]);
 	}
 
-	S4_free(discval);
-	//S4_free(work);
+	RS_free(discval);
+	//RS_free(work);
 	fft_free(work);
 
 	return 0;

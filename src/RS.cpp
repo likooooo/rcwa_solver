@@ -1,7 +1,7 @@
 #include "config.h"
 
 #define _USE_MATH_DEFINES
-#include "S4.h"
+#include "RS.h"
 #include <cstdlib>
 #include <cstring>
 #include <cmath>
@@ -22,14 +22,14 @@ extern "C" {
 #include <numalloc.h>
 
 
-void* S4_malloc(size_t size){ // for debugging
+void* RS_malloc(size_t size){ // for debugging
 	void* ret = malloc_aligned(size, 16);
 	return ret;
 }
-void S4_free(void *ptr){
+void RS_free(void *ptr){
 	free_aligned(ptr);
 }
-void* S4_realloc(void *ptr, size_t size){ // for debugging
+void* RS_realloc(void *ptr, size_t size){ // for debugging
 	void* ret = realloc_aligned(ptr, size, 16);
 	return ret;
 }
@@ -82,7 +82,7 @@ struct Solution_{
 // scans. Invalidates on SetNumG, and layer patterning
 struct FieldCache{
 	int n;
-	const S4_Layer *layer;
+	const RS_Layer *layer;
 	std::complex<double> *P; // 2n x 2n matrix, allocated along with this structure itself
 	FieldCache *next;
 };
@@ -91,31 +91,31 @@ struct FieldCache{
 
 // If layer_solution is null, only computes layer_modes if it is non-NULL.
 // If layer_solution is not null, all layer's modes are computed.
-int Simulation_GetLayerSolution(S4_Simulation *S, S4_Layer *layer, LayerModes **layer_modes, std::complex<double> **layer_solution);
+int Simulation_GetLayerSolution(RS_Simulation *S, RS_Layer *layer, LayerModes **layer_modes, std::complex<double> **layer_solution);
 
 // These two assume S->solution is set up already
-int Simulation_ComputeLayerSolution(S4_Simulation *S, S4_Layer *L, LayerModes **layer_modes, std::complex<double> **layer_solution);
-int Simulation_ComputeLayerModes(S4_Simulation *S, S4_Layer *L, LayerModes **layer_modes);
-void Simulation_SetExcitationType(S4_Simulation *S, int type);
-void Simulation_CopyExcitation(const S4_Simulation *from, S4_Simulation *to);
-int Simulation_GetSMatrix(S4_Simulation *S, int layer_from, int layer_to, std::complex<double> *M);
+int Simulation_ComputeLayerSolution(RS_Simulation *S, RS_Layer *L, LayerModes **layer_modes, std::complex<double> **layer_solution);
+int Simulation_ComputeLayerModes(RS_Simulation *S, RS_Layer *L, LayerModes **layer_modes);
+void Simulation_SetExcitationType(RS_Simulation *S, int type);
+void Simulation_CopyExcitation(const RS_Simulation *from, RS_Simulation *to);
+int Simulation_GetSMatrix(RS_Simulation *S, int layer_from, int layer_to, std::complex<double> *M);
 
 // Field cache manipulation
-void Simulation_InvalidateFieldCache(S4_Simulation *S);
-std::complex<double>* Simulation_GetCachedField(S4_Simulation *S, const S4_Layer *layer);
-void Simulation_AddFieldToCache(S4_Simulation *S, const S4_Layer *layer, size_t n, const std::complex<double> *P, size_t Plen);
+void Simulation_InvalidateFieldCache(RS_Simulation *S);
+std::complex<double>* Simulation_GetCachedField(RS_Simulation *S, const RS_Layer *layer);
+void Simulation_AddFieldToCache(RS_Simulation *S, const RS_Layer *layer, size_t n, const std::complex<double> *P, size_t Plen);
 
-void Layer_Destroy(S4_Layer *L){
-	S4_TRACE("> Layer_Destroy(L=%p)\n", L);
+void Layer_Destroy(RS_Layer *L){
+	RS_TRACE("> Layer_Destroy(L=%p)\n", L);
 	if(NULL == L){
-		S4_TRACE("< Layer_Destroy (failed; L == NULL)\n");
+		RS_TRACE("< Layer_Destroy (failed; L == NULL)\n");
 		return;
 	}
 	free(L->name); L->name = NULL;
 	if(NULL != L->pattern.shapes){
 		for(int i = 0; i < L->pattern.nshapes; ++i){
 			if(POLYGON == L->pattern.shapes[i].type && NULL != L->pattern.shapes[i].vtab.polygon.vertex){
-				S4_free(L->pattern.shapes[i].vtab.polygon.vertex);
+				RS_free(L->pattern.shapes[i].vtab.polygon.vertex);
 			}
 		}
 		free(L->pattern.shapes);
@@ -123,21 +123,21 @@ void Layer_Destroy(S4_Layer *L){
 	}
 	if(NULL != L->pattern.parent){ free(L->pattern.parent); L->pattern.parent = NULL; }
 	Simulation_DestroyLayerModes(L);
-	S4_TRACE("< Layer_Destroy\n");
+	RS_TRACE("< Layer_Destroy\n");
 }
-void Material_Destroy(S4_Material *M){
-	S4_TRACE("> Material_Destroy(M=%p)\n", M);
+void Material_Destroy(RS_Material *M){
+	RS_TRACE("> Material_Destroy(M=%p)\n", M);
 	if(NULL == M){
-		S4_TRACE("< Material_Destroy (failed; M == NULL)\n");
+		RS_TRACE("< Material_Destroy (failed; M == NULL)\n");
 		return;
 	}
-	S4_TRACE("< Material_Destroy\n");
+	RS_TRACE("< Material_Destroy\n");
 }
 
 
-S4_Simulation* S4_Simulation_New(const S4_real *Lr, unsigned int nG, int *G){
-	S4_TRACE("> S4_Simulation_New(Lr=%p, nG=%u, G=%p)\n", Lr, nG, G);
-	S4_Simulation *S = (S4_Simulation*)malloc(sizeof(S4_Simulation));
+RS_Simulation* RS_Simulation_New(const RS_real *Lr, unsigned int nG, int *G){
+	RS_TRACE("> RS_Simulation_New(Lr=%p, nG=%u, G=%p)\n", Lr, nG, G);
+	RS_Simulation *S = (RS_Simulation*)malloc(sizeof(RS_Simulation));
 	S->solution = NULL; // needed by other initializations
 
 	if(NULL == Lr){
@@ -146,29 +146,29 @@ S4_Simulation* S4_Simulation_New(const S4_real *Lr, unsigned int nG, int *G){
 		S->Lr[2] = 0;
 		S->Lr[3] = 1;
 	}else{
-		memcpy(S->Lr, Lr, sizeof(S4_real) * 4);
+		memcpy(S->Lr, Lr, sizeof(RS_real) * 4);
 	}
-	int ret = S4_Lattice_Reciprocate(S->Lr, S->Lk);
+	int ret = RS_Lattice_Reciprocate(S->Lr, S->Lk);
 	/*
 	if(1 == ret){
 		if(NULL != S->msg){
-			S->msg(S->msgdata, "S4_Lattice_Reciprocate", S4_MSG_ERROR, "Degenerate lattice basis");
+			S->msg(S->msgdata, "RS_Lattice_Reciprocate", RS_MSG_ERROR, "Degenerate lattice basis");
 		}
 	}else if(2 == ret){
 		if(NULL != S->msg){
-			S->msg(S->msgdata, "S4_Lattice_Reciprocate", S4_MSG_ERROR, "Both lattice vectors are zero");
+			S->msg(S->msgdata, "RS_Lattice_Reciprocate", RS_MSG_ERROR, "Both lattice vectors are zero");
 		}
 	}
 	*/
 	if(nG < 1){ nG = 1; }
 	S->n_G = nG;
-	S->G = (int*)S4_malloc(sizeof(int) * 2*nG);
+	S->G = (int*)RS_malloc(sizeof(int) * 2*nG);
 	S->n_materials = 0;
 	S->n_materials_alloc = 4;
-	S->material = (S4_Material*)malloc(sizeof(S4_Material) * S->n_materials_alloc);
+	S->material = (RS_Material*)malloc(sizeof(RS_Material) * S->n_materials_alloc);
 	S->n_layers = 0;
 	S->n_layers_alloc = 4;
-	S->layer = (S4_Layer*)malloc(sizeof(S4_Layer) * S->n_layers_alloc);
+	S->layer = (RS_Layer*)malloc(sizeof(RS_Layer) * S->n_layers_alloc);
 	S->omega[0] = 1;
 	S->omega[1] = 0;
 	S->k[0] = 0;
@@ -224,18 +224,18 @@ S4_Simulation* S4_Simulation_New(const S4_real *Lr, unsigned int nG, int *G){
 				S->G[2+4*i+3] = 0;
 			}
 		}
-		S4_VERB(1, "Using %d G-vectors\n", S->n_G);
+		RS_VERB(1, "Using %d G-vectors\n", S->n_G);
 	}
-	S->kx = (double*)S4_malloc(sizeof(double)*2*S->n_G);
+	S->kx = (double*)RS_malloc(sizeof(double)*2*S->n_G);
 	S->ky = S->kx + S->n_G;
 
-	S4_TRACE("< S4_Simulation_New\n");
+	RS_TRACE("< RS_Simulation_New\n");
 	return S;
 }
 
-unsigned int S4_Lattice_Count(const S4_real *Lr, unsigned int nG){
-	S4_real Lk[4];
-	S4_Lattice_Reciprocate(Lr, Lk);
+unsigned int RS_Lattice_Count(const RS_real *Lr, unsigned int nG){
+	RS_real Lk[4];
+	RS_Lattice_Reciprocate(Lr, Lk);
 	// Get G vectors
 	if(nG <= 1){ return nG; }
 	if(0 != Lr[2] || 0 != Lr[3]){
@@ -250,10 +250,10 @@ unsigned int S4_Lattice_Count(const S4_real *Lr, unsigned int nG){
 	}
 }
 
-void S4_Simulation_Destroy(S4_Simulation *S){
-	S4_TRACE("> S4_Simulation_Destroy(S=%p) [omega=%f]\n", S, S->omega[0]);
+void RS_Simulation_Destroy(RS_Simulation *S){
+	RS_TRACE("> RS_Simulation_Destroy(S=%p) [omega=%f]\n", S, S->omega[0]);
 	if(NULL == S){
-		S4_TRACE("< S4_Simulation_Destroy (failed; S == NULL) [omega=%f]\n", S->omega[0]);
+		RS_TRACE("< RS_Simulation_Destroy (failed; S == NULL) [omega=%f]\n", S->omega[0]);
 		return;
 	}
 	if(NULL != S->solution){
@@ -273,37 +273,37 @@ void S4_Simulation_Destroy(S4_Simulation *S){
 		free(S->options.vector_field_dump_filename_prefix);
 		S->options.vector_field_dump_filename_prefix = NULL;
 	}
-	S4_free(S->kx);
-	S4_free(S->G);
+	RS_free(S->kx);
+	RS_free(S->G);
 	free(S);
-	S4_TRACE("< S4_Simulation_Destroy [omega=%f]\n", S->omega[0]);
+	RS_TRACE("< RS_Simulation_Destroy [omega=%f]\n", S->omega[0]);
 }
-S4_Simulation* S4_Simulation_Clone(const S4_Simulation *S){
-	S4_TRACE("> S4_Simulation_Clone(S=%p) [omega=%f]\n", S, S->omega[0]);
-	S4_Simulation *T = (S4_Simulation*)malloc(sizeof(S4_Simulation));
+RS_Simulation* RS_Simulation_Clone(const RS_Simulation *S){
+	RS_TRACE("> RS_Simulation_Clone(S=%p) [omega=%f]\n", S, S->omega[0]);
+	RS_Simulation *T = (RS_Simulation*)malloc(sizeof(RS_Simulation));
 	if(NULL == S || NULL == T){
-		S4_TRACE("< S4_Simulation_Clone (failed; S == NULL or T == NULL) [omega=%f]\n", S->omega[0]);
+		RS_TRACE("< RS_Simulation_Clone (failed; S == NULL or T == NULL) [omega=%f]\n", S->omega[0]);
 		if(NULL != S->msg){
-			S->msg(S->msgdata, "S4_Simulation_Clone", S4_MSG_ERROR, "S == NULL or T == NULL");
+			S->msg(S->msgdata, "RS_Simulation_Clone", RS_MSG_ERROR, "S == NULL or T == NULL");
 		}
 		return NULL;
 	}
 
-	memcpy(T, S, sizeof(S4_Simulation));
+	memcpy(T, S, sizeof(RS_Simulation));
 
 	T->n_materials_alloc = S->n_materials_alloc;
-	T->material = (S4_Material*)malloc(sizeof(S4_Material) * T->n_materials_alloc);
+	T->material = (RS_Material*)malloc(sizeof(RS_Material) * T->n_materials_alloc);
 	for(int i = 0; i < S->n_materials; ++i){
-		const S4_Material *M = &(S->material[i]);
-		S4_Simulation_SetMaterial(T, -1, M->name, M->type, &M->eps.abcde[0]);
+		const RS_Material *M = &(S->material[i]);
+		RS_Simulation_SetMaterial(T, -1, M->name, M->type, &M->eps.abcde[0]);
 	}
 
 	T->n_layers_alloc = S->n_layers_alloc;
-	T->layer = (S4_Layer*)malloc(sizeof(S4_Layer) * T->n_layers_alloc);
+	T->layer = (RS_Layer*)malloc(sizeof(RS_Layer) * T->n_layers_alloc);
 	for(int i = 0; i < S->n_layers; ++i){
-		const S4_Layer *L = &(S->layer[i]);
-		S4_LayerID id = S4_Simulation_SetLayer(T, -1, L->name, &L->thickness, L->copy, L->material);
-		S4_Layer *L2 = &T->layer[id];
+		const RS_Layer *L = &(S->layer[i]);
+		RS_LayerID id = RS_Simulation_SetLayer(T, -1, L->name, &L->thickness, L->copy, L->material);
+		RS_Layer *L2 = &T->layer[id];
 		// Copy pattern
 		L2->pattern.nshapes = L->pattern.nshapes;
 		L2->pattern.shapes = (shape*)malloc(sizeof(shape)*L->pattern.nshapes);
@@ -317,12 +317,12 @@ S4_Simulation* S4_Simulation_Clone(const S4_Simulation *S){
 	T->solution = NULL;
 	T->field_cache = NULL;
 
-	S4_TRACE("< S4_Simulation_Clone [omega=%f]\n", S->omega[0]);
+	RS_TRACE("< RS_Simulation_Clone [omega=%f]\n", S->omega[0]);
 	return T;
 }
 
-S4_message_handler S4_Simulation_SetMessageHandler(
-	S4_Simulation *S, S4_message_handler handler, void *data
+RS_message_handler RS_Simulation_SetMessageHandler(
+	RS_Simulation *S, RS_message_handler handler, void *data
 ){
 	if(NULL == S){ return NULL; }
 	S->msg = handler;
@@ -330,30 +330,30 @@ S4_message_handler S4_Simulation_SetMessageHandler(
 	return handler;
 }
 
-int S4_Simulation_SetLattice(S4_Simulation *S, const S4_real *Lr){
+int RS_Simulation_SetLattice(RS_Simulation *S, const RS_real *Lr){
 	if(NULL == S){ return -1; }
 	if(NULL == Lr){ return -2; }
 	Simulation_DestroySolution(S);
-	memcpy(S->Lr, Lr, sizeof(S4_real) * 4);
-	int ret = S4_Lattice_Reciprocate(S->Lr, S->Lk);
+	memcpy(S->Lr, Lr, sizeof(RS_real) * 4);
+	int ret = RS_Lattice_Reciprocate(S->Lr, S->Lk);
 	if(1 == ret){
 		if(NULL != S->msg){
-			S->msg(S->msgdata, "S4_Lattice_Reciprocate", S4_MSG_ERROR, "Degenerate lattice basis");
+			S->msg(S->msgdata, "RS_Lattice_Reciprocate", RS_MSG_ERROR, "Degenerate lattice basis");
 		}
 	}else if(2 == ret){
 		if(NULL != S->msg){
-			S->msg(S->msgdata, "S4_Lattice_Reciprocate", S4_MSG_ERROR, "Both lattice vectors are zero");
+			S->msg(S->msgdata, "RS_Lattice_Reciprocate", RS_MSG_ERROR, "Both lattice vectors are zero");
 		}
 	}
 	return ret;
 }
-int S4_Simulation_GetLattice(const S4_Simulation *S, S4_real *Lr){
+int RS_Simulation_GetLattice(const RS_Simulation *S, RS_real *Lr){
 	if(NULL == S){ return -1; }
 	if(NULL == Lr){ return -2; }
-	memcpy(Lr, S->Lr, sizeof(S4_real) * 4);
+	memcpy(Lr, S->Lr, sizeof(RS_real) * 4);
 	return 0;
 }
-int S4_Simulation_SetBases(S4_Simulation *S, unsigned int nG, int *G){
+int RS_Simulation_SetBases(RS_Simulation *S, unsigned int nG, int *G){
 	int ret = 0;
 	if(NULL == S){ ret = -1; }
 	if(nG < 1){ ret = -2; }
@@ -365,8 +365,8 @@ int S4_Simulation_SetBases(S4_Simulation *S, unsigned int nG, int *G){
 	Simulation_InvalidateFieldCache(S);
 
 	S->n_G = nG;
-	S->G = (int*)S4_realloc(S->G, sizeof(int)*2*S->n_G);
-	S->kx = (double*)S4_realloc(S->kx, sizeof(double)*2*S->n_G);
+	S->G = (int*)RS_realloc(S->G, sizeof(int)*2*S->n_G);
+	S->kx = (double*)RS_realloc(S->kx, sizeof(double)*2*S->n_G);
 	S->ky = S->kx + S->n_G;
 
 	if(NULL != G){
@@ -392,41 +392,41 @@ int S4_Simulation_SetBases(S4_Simulation *S, unsigned int nG, int *G){
 	if(NULL != S->msg && nG != (unsigned int)S->n_G){
 		char buffer[64];
 		snprintf(buffer, 64, "Using %u bases", S->n_G);
-		S->msg(S->msgdata, "S4_Simulation_SetBases", S4_MSG_INFO, buffer);
+		S->msg(S->msgdata, "RS_Simulation_SetBases", RS_MSG_INFO, buffer);
 	}
 	return 0;
 }
-int S4_Simulation_GetBases(const S4_Simulation *S, int *G){
+int RS_Simulation_GetBases(const RS_Simulation *S, int *G){
 	if(NULL == S){ return -1; }
 	if(NULL != G){
 		memcpy(G, S->G, sizeof(int) * 2 * S->n_G);
 	}
 	return S->n_G;
 }
-int S4_Simulation_SetFrequency(S4_Simulation *S, const S4_real *freq_complex){
+int RS_Simulation_SetFrequency(RS_Simulation *S, const RS_real *freq_complex){
 	if(NULL == S){ return -1; }
 	if(NULL == freq_complex){ return -2; }
-	S4_TRACE("> S4_Simulation_SetFrequency(S=%p, freq=(%f,%f))\n", S, freq_complex[0], freq_complex[1]);
-	S4_Simulation_DestroyLayerModes(S, -1);
+	RS_TRACE("> RS_Simulation_SetFrequency(S=%p, freq=(%f,%f))\n", S, freq_complex[0], freq_complex[1]);
+	RS_Simulation_DestroyLayerModes(S, -1);
 	Simulation_DestroySolution(S);
 	Simulation_InvalidateFieldCache(S);
 	S->omega[0] = 2*M_PI*freq_complex[0];
 	S->omega[1] = 2*M_PI*freq_complex[1];
-	S4_TRACE("< S4_Simulation_SetFrequency\n");
+	RS_TRACE("< RS_Simulation_SetFrequency\n");
 	return 0;
 }
-int S4_Simulation_GetFrequency(const S4_Simulation *S, S4_real *freq_complex){
+int RS_Simulation_GetFrequency(const RS_Simulation *S, RS_real *freq_complex){
 	if(NULL == S){ return -1; }
 	if(NULL == freq_complex){ return -2; }
 	freq_complex[0] = S->omega[0] / (2*M_PI);
 	freq_complex[1] = S->omega[1] / (2*M_PI);
 	return 0;
 }
-int S4_Simulation_LayerCount(const S4_Simulation *S){
+int RS_Simulation_LayerCount(const RS_Simulation *S){
 	if(NULL == S){ return -1; }
 	return S->n_layers;
 }
-int S4_Simulation_TotalThickness(const S4_Simulation *S, S4_real *thickness){
+int RS_Simulation_TotalThickness(const RS_Simulation *S, RS_real *thickness){
 	if(NULL == S){ return -1; }
 	if(NULL == thickness){ return -2; }
 	*thickness = 0;
@@ -436,19 +436,19 @@ int S4_Simulation_TotalThickness(const S4_Simulation *S, S4_real *thickness){
 	return 0;
 }
 
-int S4_Lattice_Reciprocate(const S4_real *Lr, S4_real *Lk){
-	S4_TRACE("> S4_Lattice_Reciprocate(Lr=%f,%f, %f,%f)\n", Lr[0], Lr[1], Lr[2], Lr[3]);
+int RS_Lattice_Reciprocate(const RS_real *Lr, RS_real *Lk){
+	RS_TRACE("> RS_Lattice_Reciprocate(Lr=%f,%f, %f,%f)\n", Lr[0], Lr[1], Lr[2], Lr[3]);
 	double d;
 
 	d = Lr[0]*Lr[3] - Lr[1]*Lr[2];
 	if(0 == d){
 		if(0 != Lr[2] || 0 != Lr[3]){ // 1D lattice has zero vector for second basis vector
-			S4_TRACE("< S4_Lattice_Reciprocate (failed; degenerate lattice basis)\n");
+			RS_TRACE("< RS_Lattice_Reciprocate (failed; degenerate lattice basis)\n");
 			return 1; // degenerate lattice basis vectors
 		}
 		d = hypot(Lr[0], Lr[1]);
 		if(0 == d){
-			S4_TRACE("< S4_Lattice_Reciprocate (failed; both lattice vectors are zero)\n");
+			RS_TRACE("< RS_Lattice_Reciprocate (failed; both lattice vectors are zero)\n");
 			return 2; // both basis vectors are zero
 		}
 		d = 1./(d*d);
@@ -468,30 +468,30 @@ int S4_Lattice_Reciprocate(const S4_real *Lr, S4_real *Lk){
 		Lk[2] = -d*Lr[1];
 		Lk[3] =  d*Lr[0];
 	}
-	S4_TRACE("< S4_Lattice_Reciprocate(Lk=%f,%f, %f,%f)\n", Lk[0], Lk[1], Lk[2], Lk[3]);
+	RS_TRACE("< RS_Lattice_Reciprocate(Lk=%f,%f, %f,%f)\n", Lk[0], Lk[1], Lk[2], Lk[3]);
 	return 0;
 }
 
-S4_MaterialID S4_Simulation_SetMaterial(
-	S4_Simulation *S, S4_MaterialID id, const char *name, int type, const S4_real *eps
+RS_MaterialID RS_Simulation_SetMaterial(
+	RS_Simulation *S, RS_MaterialID id, const char *name, int type, const RS_real *eps
 ){
 	int newmat = 0;
-	S4_TRACE(
-		"> S4_Simulation_SetMaterial(S=%p, id=%d, name=%p (%s), type=%d, eps=%p (%f))\n",
+	RS_TRACE(
+		"> RS_Simulation_SetMaterial(S=%p, id=%d, name=%p (%s), type=%d, eps=%p (%f))\n",
 		S, id, name, (NULL != name ? name : ""), type, eps, (NULL != eps ? eps[0] : 0)
 	);
 	if(NULL == S){
-		S4_TRACE("< S4_Simulation_SetMaterial (failed; S == NULL)\n");
+		RS_TRACE("< RS_Simulation_SetMaterial (failed; S == NULL)\n");
 		return -1;
 	}
-	S4_Material *M = NULL;
+	RS_Material *M = NULL;
 	if(id < 0){
 		if(NULL != S->msg){
-			S->msg(S->msgdata, "S4_Simulation_SetMaterial", S4_MSG_INFO, "Adding new material");
+			S->msg(S->msgdata, "RS_Simulation_SetMaterial", RS_MSG_INFO, "Adding new material");
 		}
 		if(S->n_materials >= S->n_materials_alloc){
 			 S->n_materials_alloc *= 2;
-			 S->material = (S4_Material*)realloc(S->material, sizeof(S4_Material) * S->n_materials_alloc);
+			 S->material = (RS_Material*)realloc(S->material, sizeof(RS_Material) * S->n_materials_alloc);
 		}
 		id = S->n_materials;
 		M = &S->material[id];
@@ -504,7 +504,7 @@ S4_MaterialID S4_Simulation_SetMaterial(
 		newmat = 1;
 	}else{
 		if(NULL != S->msg){
-			S->msg(S->msgdata, "S4_Simulation_SetMaterial", S4_MSG_INFO, "Updating existing material");
+			S->msg(S->msgdata, "RS_Simulation_SetMaterial", RS_MSG_INFO, "Updating existing material");
 		}
 		if(id >= S->n_materials){ return -1; }
 		M = &S->material[id];
@@ -517,23 +517,23 @@ S4_MaterialID S4_Simulation_SetMaterial(
 	}
 	if(NULL != eps){
 		switch(type){
-		case S4_MATERIAL_TYPE_SCALAR_REAL:
+		case RS_MATERIAL_TYPE_SCALAR_REAL:
 			M->eps.s[0] = eps[0];
 			M->eps.s[1] = 0;
 			M->type = 0;
 			break;
-		case S4_MATERIAL_TYPE_SCALAR_COMPLEX:
+		case RS_MATERIAL_TYPE_SCALAR_COMPLEX:
 			M->eps.s[0] = eps[0];
 			M->eps.s[1] = eps[1];
 			M->type = 0;
 			break;
-		case S4_MATERIAL_TYPE_XYTENSOR_REAL:
+		case RS_MATERIAL_TYPE_XYTENSOR_REAL:
 			for(int i = 0; i < 5; ++i){
 				M->eps.abcde[2*i] = eps[i];
 			}
 			M->type = 1;
 			break;
-		case S4_MATERIAL_TYPE_XYTENSOR_COMPLEX:
+		case RS_MATERIAL_TYPE_XYTENSOR_COMPLEX:
 			for(int i = 0; i < 10; ++i){
 				M->eps.abcde[i] = eps[i];
 			}
@@ -547,43 +547,43 @@ S4_MaterialID S4_Simulation_SetMaterial(
 			break;
 		}
 	}
-	S4_TRACE("< S4_Simulation_SetMaterial (returning id=%d)\n", id);
+	RS_TRACE("< RS_Simulation_SetMaterial (returning id=%d)\n", id);
 	return id;
 }
-S4_MaterialID S4_Simulation_GetMaterialByName(
-	const S4_Simulation *S, const char *name
+RS_MaterialID RS_Simulation_GetMaterialByName(
+	const RS_Simulation *S, const char *name
 ){
-	S4_TRACE("> S4_Simulation_GetMaterialByName(S=%p, name=%p (%s)) [omega=%f]\n",
+	RS_TRACE("> RS_Simulation_GetMaterialByName(S=%p, name=%p (%s)) [omega=%f]\n",
 		S, name, (NULL == name ? "" : name), S->omega[0]);
 	if(NULL == name || NULL == S){ return -1; }
 	for(int i = 0; i < S->n_materials; ++i){
 		if(0 == strcmp(S->material[i].name, name)){
-			S4_TRACE("< S4_Simulation_GetMaterialByName returning %s [omega=%f]\n", S->material[i].name, S->omega[0]);
+			RS_TRACE("< RS_Simulation_GetMaterialByName returning %s [omega=%f]\n", S->material[i].name, S->omega[0]);
 			return i;
 		}
 	}
 	if(NULL != S->msg){
 		char buffer[64];
 		snprintf(buffer, 64, "Material not found: %s", name);
-		S->msg(S->msgdata, "S4_Simulation_GetMaterialByName", S4_MSG_ERROR, buffer);
+		S->msg(S->msgdata, "RS_Simulation_GetMaterialByName", RS_MSG_ERROR, buffer);
 	}
-	S4_TRACE("< S4_Simulation_GetMaterialByName (failed; material name not found) [omega=%f]\n", S->omega[0]);
+	RS_TRACE("< RS_Simulation_GetMaterialByName (failed; material name not found) [omega=%f]\n", S->omega[0]);
 	return -1;
 }
-int S4_Material_GetName(
-	const S4_Simulation *S, S4_MaterialID id, const char **name
+int RS_Material_GetName(
+	const RS_Simulation *S, RS_MaterialID id, const char **name
 ){
 	if(NULL == S){ return -1; }
 	if(id < 0 || id >= S->n_materials){ return -2; }
 	*name = S->material[id].name;
 	return 0;
 }
-int S4_Material_GetEpsilon(
-	const S4_Simulation *S, S4_MaterialID id, S4_real *eps
+int RS_Material_GetEpsilon(
+	const RS_Simulation *S, RS_MaterialID id, RS_real *eps
 ){
 	if(NULL == S){ return -1; }
 	if(id < 0 || id >= S->n_materials){ return -2; }
-	const S4_Material *M = &S->material[id];
+	const RS_Material *M = &S->material[id];
 	for(int i = 0; i < 18; ++i){
 		eps[i] = 0;
 	}
@@ -607,40 +607,40 @@ int S4_Material_GetEpsilon(
 	return 0;
 }
 
-S4_LayerID S4_Simulation_SetLayer(
-	S4_Simulation *S, S4_LayerID id, const char *name, const S4_real *thickness,
-	S4_LayerID copy, S4_MaterialID material
+RS_LayerID RS_Simulation_SetLayer(
+	RS_Simulation *S, RS_LayerID id, const char *name, const RS_real *thickness,
+	RS_LayerID copy, RS_MaterialID material
 ){
-	S4_TRACE(
-		"> S4_Simulation_SetLayer(S=%p, id=%d, name=%p (%s), thickness=%f, copy=%d, material=%d)\n",
+	RS_TRACE(
+		"> RS_Simulation_SetLayer(S=%p, id=%d, name=%p (%s), thickness=%f, copy=%d, material=%d)\n",
 		S, id, name, (NULL != name ? name : ""), (NULL != thickness ? *thickness : 0), copy, material
 	);
 	if(NULL == S){
-		S4_TRACE("< S4_Simulation_SetLayer (failed; S == NULL)\n");
+		RS_TRACE("< RS_Simulation_SetLayer (failed; S == NULL)\n");
 		return -1;
 	}
 	if(copy < 0 && material < 0){ return -1; }
 	if(copy >= S->n_layers){
 		if(NULL != S->msg){
-			S->msg(S->msgdata, "S4_Simulation_SetLayer", S4_MSG_ERROR, "Attempt to copy non-existent layer");
+			S->msg(S->msgdata, "RS_Simulation_SetLayer", RS_MSG_ERROR, "Attempt to copy non-existent layer");
 		}
 		return -1;
 	}
 	if(copy >= 0 && S->layer[copy].copy >= 0){
 		if(NULL != S->msg){
-			S->msg(S->msgdata, "S4_Simulation_SetLayer", S4_MSG_ERROR, "Attempt to copy a copied layer; de-referencing");
+			S->msg(S->msgdata, "RS_Simulation_SetLayer", RS_MSG_ERROR, "Attempt to copy a copied layer; de-referencing");
 		}
 		copy = S->layer[copy].copy;
 	}
 	Simulation_DestroySolution(S);
-	S4_Layer *L = NULL;
+	RS_Layer *L = NULL;
 	if(id < 0){
 		if(NULL != S->msg){
-			S->msg(S->msgdata, "S4_Simulation_SetLayer", S4_MSG_INFO, "Adding new layer");
+			S->msg(S->msgdata, "RS_Simulation_SetLayer", RS_MSG_INFO, "Adding new layer");
 		}
 		if(S->n_layers >= S->n_layers_alloc){
 			S->n_layers_alloc *= 2;
-			S->layer = (S4_Layer*)realloc(S->layer, sizeof(S4_Layer) * S->n_layers_alloc);
+			S->layer = (RS_Layer*)realloc(S->layer, sizeof(RS_Layer) * S->n_layers_alloc);
 		}
 		id = S->n_layers;
 		L = &S->layer[id];
@@ -656,7 +656,7 @@ S4_LayerID S4_Simulation_SetLayer(
 		L->modes = NULL;
 	}else{
 		if(NULL != S->msg){
-			S->msg(S->msgdata, "S4_Simulation_SetLayer", S4_MSG_INFO, "Updating existing layer");
+			S->msg(S->msgdata, "RS_Simulation_SetLayer", RS_MSG_INFO, "Updating existing layer");
 		}
 		if(id >= S->n_layers){ return -1; }
 		L = &S->layer[id];
@@ -670,13 +670,13 @@ S4_LayerID S4_Simulation_SetLayer(
 	}
 	if(copy >= 0){
 		if(L->copy >= 0){
-			S4_Layer_ClearRegions(S, id);
+			RS_Layer_ClearRegions(S, id);
 		}
 		L->copy = copy;
 		L->material = -1;
 	}else if(material >= 0){
 		if(L->material >= 0){
-			S4_Layer_ClearRegions(S, id);
+			RS_Layer_ClearRegions(S, id);
 		}
 		L->material = material;
 		L->copy = -1;
@@ -684,51 +684,51 @@ S4_LayerID S4_Simulation_SetLayer(
 	if(NULL != thickness){
 		L->thickness = *thickness;
 	}
-	S4_TRACE("< S4_Simulation_SetLayer (returning id=%d)\n", id);
+	RS_TRACE("< RS_Simulation_SetLayer (returning id=%d)\n", id);
 	return id;
 }
-S4_LayerID S4_Simulation_GetLayerByName(
-	const S4_Simulation *S, const char *name
+RS_LayerID RS_Simulation_GetLayerByName(
+	const RS_Simulation *S, const char *name
 ){
-	S4_TRACE("> S4_Simulation_GetLayerByName(S=%p, name=%p (%s)) [omega=%f]\n",
+	RS_TRACE("> RS_Simulation_GetLayerByName(S=%p, name=%p (%s)) [omega=%f]\n",
 		S, name, (NULL == name ? "" : name), S->omega[0]);
 	if(NULL == S || NULL == name){ return -1; }
 	for(int i = 0; i < S->n_layers; ++i){
 		if(0 == strcmp(S->layer[i].name, name)){
-			S4_TRACE("< S4_Simulation_GetLayerByName returning %s [omega=%f]\n", S->layer[i].name, S->omega[0]);
+			RS_TRACE("< RS_Simulation_GetLayerByName returning %s [omega=%f]\n", S->layer[i].name, S->omega[0]);
 			return i;
 		}
 	}
 	if(NULL != S->msg){
 		char buffer[64];
 		snprintf(buffer, 64, "Layer not found: %s", name);
-		S->msg(S->msgdata, "S4_Simulation_GetLayerByName", S4_MSG_ERROR, buffer);
+		S->msg(S->msgdata, "RS_Simulation_GetLayerByName", RS_MSG_ERROR, buffer);
 	}
-	S4_TRACE("< S4_Simulation_GetLayerByName (failed; material name not found) [omega=%f]\n", S->omega[0]);
+	RS_TRACE("< RS_Simulation_GetLayerByName (failed; material name not found) [omega=%f]\n", S->omega[0]);
 	return -1;
 }
-int S4_Layer_GetName(
-	const S4_Simulation *S, S4_LayerID id, const char **name
+int RS_Layer_GetName(
+	const RS_Simulation *S, RS_LayerID id, const char **name
 ){
 	if(NULL == S){ return -1; }
 	if(id < 0 || id >= S->n_layers){ return -2; }
 	*name = S->layer[id].name;
 	return 0;
 }
-int S4_Layer_GetThickness(
-	const S4_Simulation *S, S4_LayerID id, S4_real *thickness
+int RS_Layer_GetThickness(
+	const RS_Simulation *S, RS_LayerID id, RS_real *thickness
 ){
 	if(NULL == S){ return -1; }
 	if(id < 0 || id >= S->n_layers){ return -2; }
 	*thickness = S->layer[id].thickness;
 	return 0;
 }
-int S4_Layer_ClearRegions(
-	S4_Simulation *S, S4_LayerID id
+int RS_Layer_ClearRegions(
+	RS_Simulation *S, RS_LayerID id
 ){
 	if(NULL == S){ return -1; }
 	if(id < 0 || id >= S->n_layers){ return -2; }
-	S4_Layer *L = &S->layer[id];
+	RS_Layer *L = &S->layer[id];
 	L->pattern.nshapes = 0;
 	if(NULL != L->pattern.shapes){
 		free(L->pattern.shapes);
@@ -742,12 +742,12 @@ int S4_Layer_ClearRegions(
 	return 0;
 }
 
-int S4_Layer_SetRegionHalfwidths(
-	S4_Simulation *S, S4_LayerID Lid, S4_MaterialID Mid,
-	int type, const S4_real *halfwidths,
-	const S4_real *center, const S4_real *angle_frac
+int RS_Layer_SetRegionHalfwidths(
+	RS_Simulation *S, RS_LayerID Lid, RS_MaterialID Mid,
+	int type, const RS_real *halfwidths,
+	const RS_real *center, const RS_real *angle_frac
 ){
-	S4_TRACE("> S4_Layer_SetRegionHalfwidths(S=%p, layer=%d, material=%d, halfwidths=%p (%f,%f), center=%p (%f,%f), angle_frac=%f)\n",
+	RS_TRACE("> RS_Layer_SetRegionHalfwidths(S=%p, layer=%d, material=%d, halfwidths=%p (%f,%f), center=%p (%f,%f), angle_frac=%f)\n",
 		S, Lid, Mid,
 		halfwidths, (NULL == halfwidths ? 0 : halfwidths[0]), (NULL == halfwidths ? 0 : halfwidths[1]),
 		center, (NULL == center ? 0 : center[0]), (NULL == center ? 0 : center[1]),
@@ -758,39 +758,39 @@ int S4_Layer_SetRegionHalfwidths(
 	if(Mid < 0 || Mid >= S->n_materials){ ret = -3; }
 	if(NULL == halfwidths){ ret = -5; }
 	if(0 != ret){
-		S4_TRACE("< S4_Layer_SetRegionHalfwidths (failed; ret = %d)\n", ret);
+		RS_TRACE("< RS_Layer_SetRegionHalfwidths (failed; ret = %d)\n", ret);
 		return ret;
 	}
-	S4_real hw[2] = { halfwidths[0], halfwidths[1] };
+	RS_real hw[2] = { halfwidths[0], halfwidths[1] };
 	{
-		S4_real Lr[4];
-		S4_Simulation_GetLattice(S, Lr);
+		RS_real Lr[4];
+		RS_Simulation_GetLattice(S, Lr);
 		int lattice1d = 0;
 		if(0 == Lr[1] && 0 == Lr[2] && 0 == Lr[3]){
 			lattice1d = 1;
 		}
 		if(lattice1d && (0 != hw[1])){
 			if(NULL != S->msg){
-				S->msg(S->msgdata, "S4_Layer_SetRegionHalfwidths", S4_MSG_WARNING, "1D lattice has nonzero second halfwidth; ignoring");
+				S->msg(S->msgdata, "RS_Layer_SetRegionHalfwidths", RS_MSG_WARNING, "1D lattice has nonzero second halfwidth; ignoring");
 			}
 			hw[1] = 0;
 		}
-		if(lattice1d && (S4_REGION_TYPE_INTERVAL != type)){
+		if(lattice1d && (RS_REGION_TYPE_INTERVAL != type)){
 			if(NULL != S->msg){
-				S->msg(S->msgdata, "S4_Layer_SetRegionHalfwidths", S4_MSG_ERROR, "1D lattice may only have interval regions");
+				S->msg(S->msgdata, "RS_Layer_SetRegionHalfwidths", RS_MSG_ERROR, "1D lattice may only have interval regions");
 			}
 			ret = -4;
-			S4_TRACE("< S4_Layer_SetRegionHalfwidths (failed; ret = %d)\n", ret);
+			RS_TRACE("< RS_Layer_SetRegionHalfwidths (failed; ret = %d)\n", ret);
 			return ret;
 		}
 		if((hw[0] < 0) || (!lattice1d && hw[1] < 0)){
 			if(NULL != S->msg){
-				S->msg(S->msgdata, "S4_Layer_SetRegionHalfwidths", S4_MSG_WARNING, "Halfwidth is negative; taking absolute value");
+				S->msg(S->msgdata, "RS_Layer_SetRegionHalfwidths", RS_MSG_WARNING, "Halfwidth is negative; taking absolute value");
 			}
 			hw[0] = -hw[0];
 		}
 	}
-	S4_Layer *L = &S->layer[Lid];
+	RS_Layer *L = &S->layer[Lid];
 
 	Simulation_DestroyLayerModes(L);
 	Simulation_DestroySolution(S);
@@ -810,17 +810,17 @@ int S4_Layer_SetRegionHalfwidths(
 	}
 	sh->tag = Mid;
 	switch(type){
-	case S4_REGION_TYPE_INTERVAL:
+	case RS_REGION_TYPE_INTERVAL:
 		sh->type = RECTANGLE;
 		sh->vtab.rectangle.halfwidth[0] = hw[0];
 		sh->vtab.rectangle.halfwidth[1] = 0;
 		break;
-	case S4_REGION_TYPE_RECTANGLE:
+	case RS_REGION_TYPE_RECTANGLE:
 		sh->type = RECTANGLE;
 		sh->vtab.rectangle.halfwidth[0] = hw[0];
 		sh->vtab.rectangle.halfwidth[1] = hw[1];
 		break;
-	case S4_REGION_TYPE_ELLIPSE:
+	case RS_REGION_TYPE_ELLIPSE:
 		if(halfwidths[0] == halfwidths[1]){
 			sh->type = CIRCLE;
 			sh->vtab.circle.radius = hw[0];
@@ -830,26 +830,26 @@ int S4_Layer_SetRegionHalfwidths(
 			sh->vtab.ellipse.halfwidth[1] = hw[1];
 		}
 		break;
-	case S4_REGION_TYPE_CIRCLE:
+	case RS_REGION_TYPE_CIRCLE:
 		sh->type = CIRCLE;
 		sh->vtab.circle.radius = hw[0];
 		break;
 	default:
 		L->pattern.nshapes--;
-		S4_TRACE("  S4_Layer_SetRegionHalfwidths unknown type: %d\n", type);
+		RS_TRACE("  RS_Layer_SetRegionHalfwidths unknown type: %d\n", type);
 		break;
 	}
 
-	S4_TRACE("< S4_Layer_SetRegionHalfwidths\n");
+	RS_TRACE("< RS_Layer_SetRegionHalfwidths\n");
 	return 0;
 }
 
-int S4_Layer_SetRegionVertices(
-	S4_Simulation *S, S4_LayerID Lid, S4_MaterialID Mid,
-	int type, int nv, const S4_real *v,
-	const S4_real *center, const S4_real *angle_frac
+int RS_Layer_SetRegionVertices(
+	RS_Simulation *S, RS_LayerID Lid, RS_MaterialID Mid,
+	int type, int nv, const RS_real *v,
+	const RS_real *center, const RS_real *angle_frac
 ){
-	S4_TRACE("> S4_Layer_SetRegionVertices(S=%p, layer=%d, material=%d, nv=%d, v=%p, center=%p (%f,%f), angle_frac=%f)\n",
+	RS_TRACE("> RS_Layer_SetRegionVertices(S=%p, layer=%d, material=%d, nv=%d, v=%p, center=%p (%f,%f), angle_frac=%f)\n",
 		S, Lid, Mid,
 		nv, v,
 		center, (NULL == center ? 0 : center[0]), (NULL == center ? 0 : center[1]),
@@ -861,10 +861,10 @@ int S4_Layer_SetRegionVertices(
 	if(nv < 2){ ret = -5; }
 	if(NULL == v){ ret = -7; }
 	if(0 != ret){
-		S4_TRACE("< S4_Layer_SetRegionVertices (failed; ret = %d)\n", ret);
+		RS_TRACE("< RS_Layer_SetRegionVertices (failed; ret = %d)\n", ret);
 		return ret;
 	}
-	S4_Layer *L = &S->layer[Lid];
+	RS_Layer *L = &S->layer[Lid];
 
 	Simulation_DestroyLayerModes(L);
 	Simulation_DestroySolution(S);
@@ -884,10 +884,10 @@ int S4_Layer_SetRegionVertices(
 	}
 	sh->tag = Mid;
 	switch(type){
-	case S4_REGION_TYPE_POLYGON:
+	case RS_REGION_TYPE_POLYGON:
 		sh->type = POLYGON;
 		sh->vtab.polygon.n_vertices = nv;
-		sh->vtab.polygon.vertex = (double*)S4_malloc(sizeof(double)*nv*2);
+		sh->vtab.polygon.vertex = (double*)RS_malloc(sizeof(double)*nv*2);
 		for(int i = 0; i < nv; ++i){
 			sh->vtab.polygon.vertex[2*i+0] = v[2*i+0];
 			sh->vtab.polygon.vertex[2*i+1] = v[2*i+1];
@@ -900,7 +900,7 @@ int S4_Layer_SetRegionVertices(
 			}
 			if(area2 < 0){
 				if(NULL != S->msg){
-					S->msg(S->msgdata, "S4_Layer_SetRegionVertices", S4_MSG_WARNING, "Polygon has negative orientation; reversing orientation");
+					S->msg(S->msgdata, "RS_Layer_SetRegionVertices", RS_MSG_WARNING, "Polygon has negative orientation; reversing orientation");
 				}
 				for(int i = 0, j = nv-1; i < nv; ++i, --j){
 					sh->vtab.polygon.vertex[2*i+0] = v[2*j+0];
@@ -914,24 +914,24 @@ int S4_Layer_SetRegionVertices(
 		break;
 	}
 
-	S4_TRACE("< S4_Layer_SetRegionVertices\n");
+	RS_TRACE("< RS_Layer_SetRegionVertices\n");
 	return 0;
 }
-int S4_Layer_IsCopy(S4_Simulation *S, S4_LayerID L){
+int RS_Layer_IsCopy(RS_Simulation *S, RS_LayerID L){
 	if(NULL == S){ return -1; }
 	if(L < 0 || L >= S->n_layers){ return -2; }
 	return (S->layer[L].copy >= 0) ? 1 : 0;
 }
 
-void Simulation_DestroyLayerModes(S4_Layer *layer){
+void Simulation_DestroyLayerModes(RS_Layer *layer){
 	if(NULL != layer->modes){
-		if(NULL != layer->modes->q){ S4_free(layer->modes->q); }
+		if(NULL != layer->modes->q){ RS_free(layer->modes->q); }
 		layer->modes->q = NULL;
 		free(layer->modes);
 		layer->modes = NULL;
 	}
 }
-void S4_Simulation_DestroyLayerModes(S4_Simulation *S, S4_LayerID id){
+void RS_Simulation_DestroyLayerModes(RS_Simulation *S, RS_LayerID id){
 	if(id < 0){
 		for(int i = 0; i < S->n_layers; ++i){
 			Simulation_DestroyLayerModes(&S->layer[i]);
@@ -941,14 +941,14 @@ void S4_Simulation_DestroyLayerModes(S4_Simulation *S, S4_LayerID id){
 	}
 }
 
-int Simulation_RemoveLayerPatterns(S4_Simulation *S, S4_Layer *layer){
-	S4_TRACE("> Simulation_RemoveLayerPatterns(S=%p, layer=%p) [omega=%f]\n",
+int Simulation_RemoveLayerPatterns(RS_Simulation *S, RS_Layer *layer){
+	RS_TRACE("> Simulation_RemoveLayerPatterns(S=%p, layer=%p) [omega=%f]\n",
 		S, layer, S->omega[0]);
 	int ret = 0;
 	if(NULL == S){ ret = -1; }
 	if(NULL == layer){ ret = -2; }
 	if(0 != ret){
-		S4_TRACE("< Simulation_RemoveLayerPatterns (failed; ret = %d) [omega=%f]\n", ret, S->omega[0]);
+		RS_TRACE("< Simulation_RemoveLayerPatterns (failed; ret = %d) [omega=%f]\n", ret, S->omega[0]);
 		return ret;
 	}
 
@@ -965,34 +965,34 @@ int Simulation_RemoveLayerPatterns(S4_Simulation *S, S4_Layer *layer){
 	}
 	Simulation_DestroyLayerModes(layer);
 
-	S4_TRACE("< Simulation_RemoveLayerPatterns [omega=%f]\n", S->omega[0]);
+	RS_TRACE("< Simulation_RemoveLayerPatterns [omega=%f]\n", S->omega[0]);
 	return 0;
 }
-int Simulation_ChangeLayerThickness(S4_Simulation *S, S4_Layer *layer, const double *thick){
-	S4_TRACE("> Simulation_ChangeLayerThickness(S=%p, layer=%p, thick=%g) [omega=%f]\n",
+int Simulation_ChangeLayerThickness(RS_Simulation *S, RS_Layer *layer, const double *thick){
+	RS_TRACE("> Simulation_ChangeLayerThickness(S=%p, layer=%p, thick=%g) [omega=%f]\n",
 		S, layer, *thick, S->omega[0]);
 	int ret = 0;
 	if(NULL == S){ ret = -1; }
 	if(NULL == layer){ ret = -2; }
 	if(NULL == thick || *thick < 0){ ret = -3; }
 	if(0 != ret){
-		S4_TRACE("< Simulation_RemoveLayerPatterns (failed; ret = %d) [omega=%f]\n", ret, S->omega[0]);
+		RS_TRACE("< Simulation_RemoveLayerPatterns (failed; ret = %d) [omega=%f]\n", ret, S->omega[0]);
 		return ret;
 	}
 
 	layer->thickness = *thick;
 	Simulation_DestroyLayerSolutions(S);
 
-	S4_TRACE("< Simulation_ChangeLayerThickness [omega=%f]\n", S->omega[0]);
+	RS_TRACE("< Simulation_ChangeLayerThickness [omega=%f]\n", S->omega[0]);
 	return 0;
 }
-int Simulation_SetNumG(S4_Simulation *S, int n){
+int Simulation_SetNumG(RS_Simulation *S, int n){
 	int ret = 0;
-	S4_TRACE("> Simulation_SetNumG(S=%p, n=%d) [omega=%f]\n", S, n, S->omega[0]);
+	RS_TRACE("> Simulation_SetNumG(S=%p, n=%d) [omega=%f]\n", S, n, S->omega[0]);
 	if(NULL == S){ ret = -1; }
 	if(n < 1){ ret = -2; }
 	if(0 != ret){
-		S4_TRACE("< Simulation_SetNumG (failed; ret = %d) [omega=%f]\n", ret, S->omega[0]);
+		RS_TRACE("< Simulation_SetNumG (failed; ret = %d) [omega=%f]\n", ret, S->omega[0]);
 		return ret;
 	}
 
@@ -1000,8 +1000,8 @@ int Simulation_SetNumG(S4_Simulation *S, int n){
 	Simulation_InvalidateFieldCache(S);
 
 	S->n_G = n;
-	S->G = (int*)S4_realloc(S->G, sizeof(int)*2*S->n_G);
-	S->kx = (double*)S4_realloc(S->kx, sizeof(double)*2*S->n_G);
+	S->G = (int*)RS_realloc(S->G, sizeof(int)*2*S->n_G);
+	S->kx = (double*)RS_realloc(S->kx, sizeof(double)*2*S->n_G);
 	S->ky = S->kx + S->n_G;
 
 	if(0 != S->Lr[2] || 0 != S->Lr[3]){
@@ -1020,15 +1020,15 @@ int Simulation_SetNumG(S4_Simulation *S, int n){
 			S->G[2+4*i+3] = 0;
 		}
 	}
-	S4_TRACE("< Simulation_SetNumG [omega=%f]\n", S->omega[0]);
+	RS_TRACE("< Simulation_SetNumG [omega=%f]\n", S->omega[0]);
 	return 0;
 }
-int Simulation_GetNumG(const S4_Simulation *S, int **G){
+int Simulation_GetNumG(const RS_Simulation *S, int **G){
 	int ret = 0;
-	S4_TRACE("> Simulation_GetNumG(S=%p, G=%p) [omega=%f]\n", S, G, S->omega[0]);
+	RS_TRACE("> Simulation_GetNumG(S=%p, G=%p) [omega=%f]\n", S, G, S->omega[0]);
 	if(NULL == S){ ret = -1; }
 	if(0 != ret){
-		S4_TRACE("< Simulation_GetNumG (failed; ret = %d) [omega=%f]\n", ret, S->omega[0]);
+		RS_TRACE("< Simulation_GetNumG (failed; ret = %d) [omega=%f]\n", ret, S->omega[0]);
 		return ret;
 	}
 
@@ -1038,16 +1038,16 @@ int Simulation_GetNumG(const S4_Simulation *S, int **G){
 		*G = S->G;
 	}
 
-	S4_TRACE("< Simulation_GetNumG [omega=%f]\n", S->omega[0]);
+	RS_TRACE("< Simulation_GetNumG [omega=%f]\n", S->omega[0]);
 	return ret;
 }
 int Simulation_AddLayerPatternCircle(
-	S4_Simulation *S,
-	S4_Layer *layer, int material,
+	RS_Simulation *S,
+	RS_Layer *layer, int material,
 	const double center[2],
 	double radius
 ){
-	S4_TRACE("> Simulation_AddLayerPatternCircle(S=%p, layer=%p, material=%d, center=%p (%f,%f), radius=%f)\n",
+	RS_TRACE("> Simulation_AddLayerPatternCircle(S=%p, layer=%p, material=%d, center=%p (%f,%f), radius=%f)\n",
 		S, layer,
 		material,
 		center, (NULL == center ? 0.0 : center[0]), (NULL == center ? 0.0 : center[1]),
@@ -1059,7 +1059,7 @@ int Simulation_AddLayerPatternCircle(
 	if(NULL == center){ ret = -4; }
 	if(radius < 0){ ret = -5; }
 	if(0 != ret){
-		S4_TRACE("< Simulation_AddLayerPatternCircle (failed; ret = %d)\n", ret);
+		RS_TRACE("< Simulation_AddLayerPatternCircle (failed; ret = %d)\n", ret);
 		return ret;
 	}
 
@@ -1078,17 +1078,17 @@ int Simulation_AddLayerPatternCircle(
 	sh->vtab.circle.radius = radius;
 	sh->tag = material;
 
-	S4_TRACE("< Simulation_AddLayerPatternCircle\n");
+	RS_TRACE("< Simulation_AddLayerPatternCircle\n");
 	return 0;
 }
 int Simulation_AddLayerPatternEllipse(
-	S4_Simulation *S,
-	S4_Layer *layer, int material,
+	RS_Simulation *S,
+	RS_Layer *layer, int material,
 	const double center[2],
 	double angle,
 	const double halfwidths[2]
 ){
-	S4_TRACE("> Simulation_AddLayerPatternEllipse(S=%p, layer=%p, material=%d, center=%p (%f,%f), angle=%f, halfwidths=%p (%f,%f))\n",
+	RS_TRACE("> Simulation_AddLayerPatternEllipse(S=%p, layer=%p, material=%d, center=%p (%f,%f), angle=%f, halfwidths=%p (%f,%f))\n",
 		S, layer,
 		material,
 		center, (NULL == center ? 0 : center[0]), (NULL == center ? 0 : center[1]),
@@ -1101,7 +1101,7 @@ int Simulation_AddLayerPatternEllipse(
 	if(NULL == center){ ret = -4; }
 	if(NULL == halfwidths){ ret = -6; }
 	if(0 != ret){
-		S4_TRACE("< Simulation_AddLayerPatternEllipse (failed; ret = %d)\n", ret);
+		RS_TRACE("< Simulation_AddLayerPatternEllipse (failed; ret = %d)\n", ret);
 		return ret;
 	}
 
@@ -1122,18 +1122,18 @@ int Simulation_AddLayerPatternEllipse(
 	sh->vtab.ellipse.halfwidth[1] = halfwidths[1];
 	sh->tag = material;
 
-	S4_TRACE("< Simulation_AddLayerPatternEllipse\n");
+	RS_TRACE("< Simulation_AddLayerPatternEllipse\n");
 	return 0;
 }
 
 int Simulation_AddLayerPatternRectangle(
-	S4_Simulation *S,
-	S4_Layer *layer, int material,
+	RS_Simulation *S,
+	RS_Layer *layer, int material,
 	const double center[2],
 	double angle,
 	const double halfwidths[2]
 ){
-	S4_TRACE("> Simulation_AddLayerPatternRectangle(S=%p, layer=%p, material=%d, center=%p (%f,%f), angle=%f, halfwidths=%p (%f,%f))\n",
+	RS_TRACE("> Simulation_AddLayerPatternRectangle(S=%p, layer=%p, material=%d, center=%p (%f,%f), angle=%f, halfwidths=%p (%f,%f))\n",
 		S, layer,
 		material,
 		center, (NULL == center ? 0 : center[0]), (NULL == center ? 0 : center[1]),
@@ -1146,7 +1146,7 @@ int Simulation_AddLayerPatternRectangle(
 	if(NULL == center){ ret = -4; }
 	if(NULL == halfwidths){ ret = -6; }
 	if(0 != ret){
-		S4_TRACE("< Simulation_AddLayerPatternRectangle (failed; ret = %d)\n", ret);
+		RS_TRACE("< Simulation_AddLayerPatternRectangle (failed; ret = %d)\n", ret);
 		return ret;
 	}
 
@@ -1166,18 +1166,18 @@ int Simulation_AddLayerPatternRectangle(
 	sh->vtab.rectangle.halfwidth[1] = halfwidths[1];
 	sh->tag = material;
 
-	S4_TRACE("< Simulation_AddLayerPatternRectangle\n");
+	RS_TRACE("< Simulation_AddLayerPatternRectangle\n");
 	return 0;
 }
 int Simulation_AddLayerPatternPolygon(
-	S4_Simulation *S,
-	S4_Layer *layer, int material,
+	RS_Simulation *S,
+	RS_Layer *layer, int material,
 	const double center[2],
 	double angle,
 	int nvert,
 	const double *vert
 ){
-	S4_TRACE("> Simulation_AddLayerPatternPolygon(S=%p, layer=%p, material=%d, center=%p (%f,%f), angle=%f, nvert=%d, vert=%p)\n",
+	RS_TRACE("> Simulation_AddLayerPatternPolygon(S=%p, layer=%p, material=%d, center=%p (%f,%f), angle=%f, nvert=%d, vert=%p)\n",
 		S, layer,
 		material,
 		center, (NULL == center ? 0 : center[0]), (NULL == center ? 0 : center[1]),
@@ -1192,7 +1192,7 @@ int Simulation_AddLayerPatternPolygon(
 	if(nvert < 3){ ret = -6; }
 	if(NULL == vert){ ret = -7; }
 	if(0 != ret){
-		S4_TRACE("< Simulation_AddLayerPatternPolygon (failed; ret = %d)\n", ret);
+		RS_TRACE("< Simulation_AddLayerPatternPolygon (failed; ret = %d)\n", ret);
 		return ret;
 	}
 
@@ -1209,14 +1209,14 @@ int Simulation_AddLayerPatternPolygon(
 	sh->center[1] = center[1];
 	sh->angle = angle;
 	sh->vtab.polygon.n_vertices = nvert;
-	sh->vtab.polygon.vertex = (double*)S4_malloc(sizeof(double)*nvert*2);
+	sh->vtab.polygon.vertex = (double*)RS_malloc(sizeof(double)*nvert*2);
 	for(int i = 0; i < nvert; ++i){
 		sh->vtab.polygon.vertex[2*i+0] = vert[2*i+0];
 		sh->vtab.polygon.vertex[2*i+1] = vert[2*i+1];
 	}
 	sh->tag = material;
 
-	S4_TRACE("< Simulation_AddLayerPatternPolygon\n");
+	RS_TRACE("< Simulation_AddLayerPatternPolygon\n");
 	return 0;
 }
 
@@ -1231,18 +1231,18 @@ int Simulation_AddLayerPatternPolygon(
 // 14 - no layers
 // 15 - material not found
 // 16 - invalid 1D layer patterning
-int Simulation_InitSolution(S4_Simulation *S){
-	S4_TRACE("> Simulation_InitSolution(S=%p) [omega=%f]\n", S, S->omega[0]);
+int Simulation_InitSolution(RS_Simulation *S){
+	RS_TRACE("> Simulation_InitSolution(S=%p) [omega=%f]\n", S, S->omega[0]);
 
 	if(NULL == S){
-		S4_TRACE("< Simulation_InitSolution (failed; S == NULL) [omega=%f]\n", S->omega[0]);
+		RS_TRACE("< Simulation_InitSolution (failed; S == NULL) [omega=%f]\n", S->omega[0]);
 		return -1;
 	}
 	if(S->n_G < 1){
 		if(NULL != S->msg){
-			S->msg(S->msgdata, "Simulation_InitSolution", S4_MSG_ERROR, "Basis set contains fewer than 1 element");
+			S->msg(S->msgdata, "Simulation_InitSolution", RS_MSG_ERROR, "Basis set contains fewer than 1 element");
 		}
-		S4_TRACE("< Simulation_InitSolution (failed; S->n_G < 1) [omega=%f]\n", S->omega[0]);
+		RS_TRACE("< Simulation_InitSolution (failed; S->n_G < 1) [omega=%f]\n", S->omega[0]);
 		return 9;
 	}
 
@@ -1251,14 +1251,14 @@ int Simulation_InitSolution(S4_Simulation *S){
 	// Check that layer copies and the excitation layer names exist
 	bool found_ex_layer = (NULL == S->exc.layer);
 	for(int i = 0; i < S->n_layers; ++i){
-		S4_Layer *L = &(S->layer[i]);
+		RS_Layer *L = &(S->layer[i]);
 		if(L->copy >= 0){
 			bool found = false;
 			for(int j = 0; j < S->n_layers; ++j){
-				const S4_Layer *L2 = &(S->layer[j]);
+				const RS_Layer *L2 = &(S->layer[j]);
 				if(j == L->copy){
 					if(L2->copy >= 0){
-						S4_TRACE("< Simulation_InitSolution (failed; layer %s is referenced by a copy but is also a copy) [omega=%f]\n", L2->name, S->omega[0]);
+						RS_TRACE("< Simulation_InitSolution (failed; layer %s is referenced by a copy but is also a copy) [omega=%f]\n", L2->name, S->omega[0]);
 						return 11;
 					}
 					found = true;
@@ -1266,16 +1266,16 @@ int Simulation_InitSolution(S4_Simulation *S){
 				}
 			}
 			if(!found){
-				S4_TRACE("< Simulation_InitSolution (failed; could not find layer %d is referenced by a copy) [omega=%f]\n", L->copy, S->omega[0]);
+				RS_TRACE("< Simulation_InitSolution (failed; could not find layer %d is referenced by a copy) [omega=%f]\n", L->copy, S->omega[0]);
 				return 10;
 			}
 		}else{
 			/*
 			// check that no duplicate names exist
 			for(int j = 0; j < i; ++j){
-				const S4_Layer *L2 = &(S->layer[j]);
+				const RS_Layer *L2 = &(S->layer[j]);
 				if(0 == strcmp(L2->name, L->name)){
-					S4_TRACE("< Simulation_InitSolution (failed; layer name %s appears more than once) [omega=%f]\n", L->name, S->omega[0]);
+					RS_TRACE("< Simulation_InitSolution (failed; layer name %s appears more than once) [omega=%f]\n", L->name, S->omega[0]);
 					return 12;
 				}
 			}
@@ -1299,21 +1299,21 @@ int Simulation_InitSolution(S4_Simulation *S){
 		L->pattern.parent = (int*)malloc(sizeof(int)*L->pattern.nshapes);
 		int error = Pattern_GetContainmentTree(&L->pattern);
 		if(0 != error){
-			S4_TRACE("< Simulation_InitSolution (failed; Pattern_GetContainmentTree returned %d for layer %s) [omega=%f]\n", error, L->name, S->omega[0]);
+			RS_TRACE("< Simulation_InitSolution (failed; Pattern_GetContainmentTree returned %d for layer %s) [omega=%f]\n", error, L->name, S->omega[0]);
 			return error;
 		}
 	}
 	if(S->n_layers < 1){
-		S4_TRACE("< Simulation_InitSolution (failed; fewer than one layer found) [omega=%f]\n", S->omega[0]);
+		RS_TRACE("< Simulation_InitSolution (failed; fewer than one layer found) [omega=%f]\n", S->omega[0]);
 		if(NULL != S->msg){
-			S->msg(S->msgdata, "Simulation_InitSolution", S4_MSG_ERROR, "Fewer than one layer found");
+			S->msg(S->msgdata, "Simulation_InitSolution", RS_MSG_ERROR, "Fewer than one layer found");
 		}
 		return 14;
 	}
 	if(!found_ex_layer){
-		S4_TRACE("< Simulation_InitSolution (failed; excitation layer not found) [omega=%f]\n", S->omega[0]);
+		RS_TRACE("< Simulation_InitSolution (failed; excitation layer not found) [omega=%f]\n", S->omega[0]);
 		if(NULL != S->msg){
-			S->msg(S->msgdata, "Simulation_InitSolution", S4_MSG_ERROR, "Excitation layer not found");
+			S->msg(S->msgdata, "Simulation_InitSolution", RS_MSG_ERROR, "Excitation layer not found");
 		}
 		return 13;
 	}
@@ -1322,60 +1322,60 @@ int Simulation_InitSolution(S4_Simulation *S){
 		Simulation_DestroySolution(S);
 	}
 	S->solution = (Solution_*)malloc(sizeof(Solution_));
-	S->solution->ab = (std::complex<double>*)S4_malloc(sizeof(std::complex<double>) * S->n_layers * 4 * S->n_G);
+	S->solution->ab = (std::complex<double>*)RS_malloc(sizeof(std::complex<double>) * S->n_layers * 4 * S->n_G);
 	S->solution->solved = (int*)malloc(sizeof(int) * S->n_layers);
 	if(NULL == S->solution || NULL == S->solution->ab || NULL == S->solution->solved){
-		S4_TRACE("< Simulation_InitSolution (failed; could not allocate S->solution) [omega=%f]\n", S->omega[0]);
+		RS_TRACE("< Simulation_InitSolution (failed; could not allocate S->solution) [omega=%f]\n", S->omega[0]);
 		if(NULL != S->msg){
-			S->msg(S->msgdata, "Simulation_InitSolution", S4_MSG_ERROR, "Could not allocate solution memory");
+			S->msg(S->msgdata, "Simulation_InitSolution", RS_MSG_ERROR, "Could not allocate solution memory");
 		}
 		return 1;
 	}
 	memset(S->solution->solved, 0, sizeof(int) * S->n_layers);
 
-	S4_TRACE("I  Simulation_InitSolution G: (%d) [omega=%f]\n", S->n_G, S->omega[0]);
+	RS_TRACE("I  Simulation_InitSolution G: (%d) [omega=%f]\n", S->n_G, S->omega[0]);
 
 	for(int i = 0; i < S->n_G; ++i){
 		S->kx[i] = S->k[0]*S->omega[0] + 2*M_PI*(S->Lk[0]*S->G[2*i+0] + S->Lk[2]*S->G[2*i+1]);
 		S->ky[i] = S->k[1]*S->omega[0] + 2*M_PI*(S->Lk[1]*S->G[2*i+0] + S->Lk[3]*S->G[2*i+1]);
 	}
 
-	S4_TRACE("< Simulation_InitSolution [omega=%f]\n", S->omega[0]);
+	RS_TRACE("< Simulation_InitSolution [omega=%f]\n", S->omega[0]);
 	return 0;
 }
 
 // realistically, can return -2 if layer is not found, or an InitSolution code
-int Simulation_GetLayerSolution(S4_Simulation *S, S4_Layer *layer, LayerModes **layer_modes, std::complex<double> **layer_solution){
-	S4_TRACE("> Simulation_GetLayerSolution(S=%p, layer=%p, layer_modes=%p (%p), layer_solution=%p (%p)) [omega=%f]\n",
+int Simulation_GetLayerSolution(RS_Simulation *S, RS_Layer *layer, LayerModes **layer_modes, std::complex<double> **layer_solution){
+	RS_TRACE("> Simulation_GetLayerSolution(S=%p, layer=%p, layer_modes=%p (%p), layer_solution=%p (%p)) [omega=%f]\n",
 		S, layer,
 		layer_modes, (NULL != layer_modes ? *layer_modes : NULL), layer_solution, (NULL != layer_solution ? *layer_solution : NULL), S->omega[0]);
 	int error;
 	Solution_ *sol;
 	if(NULL == S){
-		S4_TRACE("< Simulation_GetLayerSolution (failed; S == NULL) [omega=%f]\n", S->omega[0]);
+		RS_TRACE("< Simulation_GetLayerSolution (failed; S == NULL) [omega=%f]\n", S->omega[0]);
 		return -1;
 	}
 	if(NULL == layer){
-		S4_TRACE("< Simulation_GetLayerSolution (failed; layer == NULL) [omega=%f]\n", S->omega[0]);
+		RS_TRACE("< Simulation_GetLayerSolution (failed; layer == NULL) [omega=%f]\n", S->omega[0]);
 		return -2;
 	}
 
 	if(NULL == S->solution){
 		error = Simulation_InitSolution(S);
 		if(0 != error){
-			S4_TRACE("< Simulation_GetLayerSolution (failed; Simulation_InitSolution returned %d) [omega=%f]\n", error, S->omega[0]);
+			RS_TRACE("< Simulation_GetLayerSolution (failed; Simulation_InitSolution returned %d) [omega=%f]\n", error, S->omega[0]);
 			return error;
 		}
 	}
 	sol = S->solution;
 
 	for(int i = 0; i < S->n_layers; ++i){
-		S4_Layer *L = &(S->layer[i]);
+		RS_Layer *L = &(S->layer[i]);
 		if(L == layer){
 			if((NULL == L->modes && L->copy < 0) || (L->copy >= 0 && NULL == S->layer[L->copy].modes) || !sol->solved[i]){
 				error = Simulation_ComputeLayerSolution(S, L, layer_modes, layer_solution);
 				if(0 != error){ // should never happen
-					S4_TRACE("< Simulation_GetLayerSolution (failed; Simulation_ComputeLayerSolution returned %d) [omega=%f]\n", error, S->omega[0]);
+					RS_TRACE("< Simulation_GetLayerSolution (failed; Simulation_ComputeLayerSolution returned %d) [omega=%f]\n", error, S->omega[0]);
 					return 2;
 				}
 				if(L->copy < 0){
@@ -1390,23 +1390,23 @@ int Simulation_GetLayerSolution(S4_Simulation *S, S4_Layer *layer, LayerModes **
 				*layer_solution = &sol->ab[i*4*S->n_G];
 			}
 
-			S4_TRACE("< Simulation_GetLayerSolution [omega=%f]\n", S->omega[0]);
+			RS_TRACE("< Simulation_GetLayerSolution [omega=%f]\n", S->omega[0]);
 			return 0;
 		}
 	}
 
-	S4_TRACE("< Simulation_GetLayerSolution (failed; layer not found) [omega=%f]\n", S->omega[0]);
+	RS_TRACE("< Simulation_GetLayerSolution (failed; layer not found) [omega=%f]\n", S->omega[0]);
 	return -2;
 }
 
-int S4_Simulation_SolveLayer(S4_Simulation *S, S4_LayerID layer){
-	S4_TRACE("> Simulation_SolveLayer(S=%p, layer=%d) [omega=%f]\n", S, layer, S->omega[0]);
+int RS_Simulation_SolveLayer(RS_Simulation *S, RS_LayerID layer){
+	RS_TRACE("> Simulation_SolveLayer(S=%p, layer=%d) [omega=%f]\n", S, layer, S->omega[0]);
 	if(NULL == S){
-		S4_TRACE("< Simulation_GetLayerSolution (failed; S == NULL) [omega=%f]\n", S->omega[0]);
+		RS_TRACE("< Simulation_GetLayerSolution (failed; S == NULL) [omega=%f]\n", S->omega[0]);
 		return -1;
 	}
 	if(layer < 0 || layer >= S->n_layers){
-		S4_TRACE("< Simulation_GetLayerSolution (failed; layer == NULL) [omega=%f]\n", S->omega[0]);
+		RS_TRACE("< Simulation_GetLayerSolution (failed; layer == NULL) [omega=%f]\n", S->omega[0]);
 		return -2;
 	}
 
@@ -1414,26 +1414,26 @@ int S4_Simulation_SolveLayer(S4_Simulation *S, S4_LayerID layer){
 	std::complex<double> *Lsoln = NULL;
 	int ret = Simulation_GetLayerSolution(S, &S->layer[layer], &Lmodes, &Lsoln);
 
-	S4_TRACE("< Simulation_SolveLayer [omega=%f]\n", S->omega[0]);
+	RS_TRACE("< Simulation_SolveLayer [omega=%f]\n", S->omega[0]);
 	return ret;
 }
 
-int Simulation_ComputeLayerSolution(S4_Simulation *S, S4_Layer *L, LayerModes **layer_modes, std::complex<double> **layer_solution){
-	S4_TRACE("> Simulation_ComputeLayerSolution(S=%p, L=%p (%s), layer_modes=%p (%p), LayerSolution=%p (%p)) [omega=%f]\n",
+int Simulation_ComputeLayerSolution(RS_Simulation *S, RS_Layer *L, LayerModes **layer_modes, std::complex<double> **layer_solution){
+	RS_TRACE("> Simulation_ComputeLayerSolution(S=%p, L=%p (%s), layer_modes=%p (%p), LayerSolution=%p (%p)) [omega=%f]\n",
 		S, L, (NULL != L && NULL != L->name ? L->name : ""), layer_modes, (NULL != layer_modes ? *layer_modes : NULL), layer_solution, (NULL != layer_solution ? *layer_solution : NULL), S->omega[0]);
 	if(NULL != layer_modes && NULL == layer_solution){
 		// only need to compute modes for L
 		Simulation_ComputeLayerModes(S, L, layer_modes);
-		S4_TRACE("< Simulation_ComputeLayerSolution [omega=%f]\n", S->omega[0]);
+		RS_TRACE("< Simulation_ComputeLayerSolution [omega=%f]\n", S->omega[0]);
 		return 0;
 	}
 	if(NULL == layer_solution){
-		S4_TRACE("< Simulation_ComputeLayerSolution [omega=%f]\n", S->omega[0]);
+		RS_TRACE("< Simulation_ComputeLayerSolution [omega=%f]\n", S->omega[0]);
 		return 0;
 	}
 	// At this point, layer_solution != NULL, we need to get all modes
 
-	S4_VERB(1, "Computing solution in layer: %s\n", NULL != L->name ? L->name : "");
+	RS_VERB(1, "Computing solution in layer: %s\n", NULL != L->name ? L->name : "");
 
 	const size_t n = S->n_G;
 	const size_t n2 = 2*n;
@@ -1444,7 +1444,7 @@ int Simulation_ComputeLayerSolution(S4_Simulation *S, S4_Layer *L, LayerModes **
 	int which_layer = 0;
 	bool found_layer = false;
 	for(int i = 0; i < S->n_layers; ++i){
-		S4_Layer *SL = &(S->layer[i]);
+		RS_Layer *SL = &(S->layer[i]);
 		if(NULL == SL->modes && SL->copy < 0){
 			Simulation_ComputeLayerModes(S, SL, &SL->modes);
 		}
@@ -1460,16 +1460,16 @@ int Simulation_ComputeLayerSolution(S4_Simulation *S, S4_Layer *L, LayerModes **
 		}
 	}
 	if(!found_layer){
-		S4_TRACE("< Simulation_ComputeLayerSolution (failed; could not find layer) [omega=%f]\n", S->omega[0]);
+		RS_TRACE("< Simulation_ComputeLayerSolution (failed; could not find layer) [omega=%f]\n", S->omega[0]);
 		return -1;
 	}
 
 	// Make arrays of q, kp, and phi
-	double *lthick = (double*)S4_malloc(sizeof(double)*S->n_layers);
-	int *lepstype = (int*)S4_malloc(sizeof(int)*S->n_layers);
-	const std::complex<double> **lq   = (const std::complex<double> **)S4_malloc(sizeof(const std::complex<double> *)*S->n_layers*4);
+	double *lthick = (double*)RS_malloc(sizeof(double)*S->n_layers);
+	int *lepstype = (int*)RS_malloc(sizeof(int)*S->n_layers);
+	const std::complex<double> **lq   = (const std::complex<double> **)RS_malloc(sizeof(const std::complex<double> *)*S->n_layers*4);
 	if(NULL == lthick || NULL == lq){
-		S4_TRACE("< Simulation_ComputeLayerSolution (failed; could not allocate work arrays) [omega=%f]\n", S->omega[0]);
+		RS_TRACE("< Simulation_ComputeLayerSolution (failed; could not allocate work arrays) [omega=%f]\n", S->omega[0]);
 		return 1;
 	}
 	const std::complex<double> **lepsinv  = lq  + S->n_layers;
@@ -1477,8 +1477,8 @@ int Simulation_ComputeLayerSolution(S4_Simulation *S, S4_Layer *L, LayerModes **
 	const std::complex<double> **lphi = lkp + S->n_layers;
 
 	for(int i = 0; i < S->n_layers; ++i){
-		const S4_Layer *SL = &(S->layer[i]);
-		const S4_Layer *SLmodes = SL;
+		const RS_Layer *SL = &(S->layer[i]);
+		const RS_Layer *SLmodes = SL;
 		if(SL->copy >= 0){ SLmodes = &S->layer[SL->copy]; }
 		lthick[i] = SL->thickness;
 		lq  [i] = SLmodes->modes->q;
@@ -1496,7 +1496,7 @@ int Simulation_ComputeLayerSolution(S4_Simulation *S, S4_Layer *L, LayerModes **
 		const bool inc_back = (0 != S->exc.sub.planewave.backwards);
 		const size_t ind_fb = (inc_back ? S->n_layers-1 : 0);
 		const size_t phicopy_size = (NULL == lphi[ind_fb] ? 0 : n2*n2);
-		std::complex<double> *ab0 = (std::complex<double>*)S4_malloc(sizeof(std::complex<double>)*(n2+phicopy_size));
+		std::complex<double> *ab0 = (std::complex<double>*)RS_malloc(sizeof(std::complex<double>)*(n2+phicopy_size));
 		std::complex<double> *phicopy = (NULL == lphi[ind_fb] ? NULL : ab0 + n2);
 		RNP::TBLAS::Fill(n2, 0., ab0,1);
 		if(order < n){
@@ -1513,14 +1513,14 @@ int Simulation_ComputeLayerSolution(S4_Simulation *S, S4_Layer *L, LayerModes **
 		}
 
 		if(S->options.use_less_memory){
-			S4_TRACE("I  Calling SolveInterior(layer_count=%d, which_layer=%d, n=%d, lthick,lq,lkp,lphi={\n", S->n_layers, which_layer, S->n_G);
+			RS_TRACE("I  Calling SolveInterior(layer_count=%d, which_layer=%d, n=%d, lthick,lq,lkp,lphi={\n", S->n_layers, which_layer, S->n_G);
 			for(int i = 0; i < S->n_layers; ++i){
-				S4_TRACE("I    %f, %p (0,0=%f,%f), %p (0,0=%f,%f), %p (0,0=%f,%f)\n", lthick[i],
+				RS_TRACE("I    %f, %p (0,0=%f,%f), %p (0,0=%f,%f), %p (0,0=%f,%f)\n", lthick[i],
 					lq[i], lq[i][0].real(), lq[i][0].imag(),
 					lkp[i], NULL != lkp[i] ? lkp[i][0].real() : 0., NULL != lkp[i] ? lkp[i][0].imag() : 0.,
 					lphi[i], NULL != lphi[0] ? lphi[i][0].real() : 1., NULL != lphi[0] ? lphi[i][0].imag() : 0.);
 			}
-			S4_TRACE("I   }, a0[0]=%f,%f, a0[n]=%f,%f, ...) [omega=%f]\n", ab0[0].real(), ab0[0].imag(), ab0[S->n_G].real(), ab0[S->n_G].imag(), S->omega[0]);
+			RS_TRACE("I   }, a0[0]=%f,%f, a0[n]=%f,%f, ...) [omega=%f]\n", ab0[0].real(), ab0[0].imag(), ab0[S->n_G].real(), ab0[S->n_G].imag(), S->omega[0]);
 
 			error = SolveInterior(
 				S->n_layers, which_layer,
@@ -1541,8 +1541,8 @@ int Simulation_ComputeLayerSolution(S4_Simulation *S, S4_Layer *L, LayerModes **
 				memcpy(&pab[S->n_layers*n4 - n2], ab0, sizeof(std::complex<double>) * n2);
 			}
 			const size_t lwork = 6*S->n_layers*n2*n2;
-			std::complex<double> *work = (std::complex<double>*)S4_malloc(sizeof(std::complex<double>) * lwork);
-			size_t *iwork = (size_t*)S4_malloc(sizeof(size_t) * S->n_layers*n2);
+			std::complex<double> *work = (std::complex<double>*)RS_malloc(sizeof(std::complex<double>) * lwork);
+			size_t *iwork = (size_t*)RS_malloc(sizeof(size_t) * S->n_layers*n2);
 			SolveAll(
 				S->n_layers, S->n_G, S->kx, S->ky,
 				std::complex<double>(S->omega[0], S->omega[1]),
@@ -1550,18 +1550,18 @@ int Simulation_ComputeLayerSolution(S4_Simulation *S, S4_Layer *L, LayerModes **
 				pab,
 				work, iwork, lwork
 			);
-			S4_free(iwork);
-			S4_free(work);
+			RS_free(iwork);
+			RS_free(work);
 			for(size_t i = 0; i < S->n_layers; ++i){
 				sol->solved[i] = 1;
 			}
 		}
-		S4_free(ab0);
+		RS_free(ab0);
 	}else if(2 == S->exc.type){
 		Excitation_Exterior *ext = &(S->exc.sub.exterior);
 		// Front incidence by planewave
 		size_t phicopy_size = (NULL == lphi[0] ? 0 : n2*n2);
-		std::complex<double> *a0 = (std::complex<double>*)S4_malloc(sizeof(std::complex<double>)*(n4+phicopy_size));
+		std::complex<double> *a0 = (std::complex<double>*)RS_malloc(sizeof(std::complex<double>)*(n4+phicopy_size));
 		std::complex<double> *bN = a0 + n2;
 		RNP::TBLAS::Fill(n4, 0., a0,1);
 		for(size_t i = 0; i < ext->n; ++i){
@@ -1585,14 +1585,14 @@ int Simulation_ComputeLayerSolution(S4_Simulation *S, S4_Layer *L, LayerModes **
 			}
 		}
 
-		S4_TRACE("I  Calling SolveInterior(layer_count=%d, which_layer=%d, n=%d, lthick,lq,lkp,lphi={\n", S->n_layers, which_layer, S->n_G);
+		RS_TRACE("I  Calling SolveInterior(layer_count=%d, which_layer=%d, n=%d, lthick,lq,lkp,lphi={\n", S->n_layers, which_layer, S->n_G);
 		for(int i = 0; i < S->n_layers; ++i){
-			S4_TRACE("I    %f, %p (0,0=%f,%f), %p (0,0=%f,%f), %p (0,0=%f,%f)\n", lthick[i],
+			RS_TRACE("I    %f, %p (0,0=%f,%f), %p (0,0=%f,%f), %p (0,0=%f,%f)\n", lthick[i],
 				lq[i], lq[i][0].real(), lq[i][0].imag(),
 				lkp[i], NULL != lkp[i] ? lkp[i][0].real() : 0., NULL != lkp[i] ? lkp[i][0].imag() : 0.,
 				lphi[i], NULL != lphi[0] ? lphi[i][0].real() : 1., NULL != lphi[0] ? lphi[i][0].imag() : 0.);
 		}
-		S4_TRACE("I   }, a0[0]=%f,%f, a0[n]=%f,%f, ...) [omega=%f]\n", a0[0].real(), a0[0].imag(), a0[S->n_G].real(), a0[S->n_G].imag(), S->omega[0]);
+		RS_TRACE("I   }, a0[0]=%f,%f, a0[n]=%f,%f, ...) [omega=%f]\n", a0[0].real(), a0[0].imag(), a0[S->n_G].real(), a0[S->n_G].imag(), S->omega[0]);
 
 		error = SolveInterior(
 			S->n_layers, which_layer,
@@ -1603,14 +1603,14 @@ int Simulation_ComputeLayerSolution(S4_Simulation *S, S4_Layer *L, LayerModes **
 			a0, // length 2*n
 			bN, // bN
 			(*layer_solution));
-		S4_free(a0);
+		RS_free(a0);
 	}else if(1 == S->exc.type){
-		S4_Layer *l[2];
+		RS_Layer *l[2];
 		l[0] = S->exc.layer;
 		const int li = (l[0] - &S->layer[0]);
 		if(NULL == l[0]){ return 13; }
 		l[1] = l[0]+1;
-		std::complex<double> *ab = (std::complex<double>*)S4_malloc(sizeof(std::complex<double>)*(n4+n4*n4+n2*n2));
+		std::complex<double> *ab = (std::complex<double>*)RS_malloc(sizeof(std::complex<double>)*(n4+n4*n4+n2*n2));
 		std::complex<double> *work4 = ab + n4;
 		std::complex<double> *work2 = work4 + n4*n4;
 		std::complex<double> J0[3] = {
@@ -1744,26 +1744,26 @@ int Simulation_ComputeLayerSolution(S4_Simulation *S, S4_Layer *L, LayerModes **
 				NULL, // bN
 				(*layer_solution));
 		}
-		S4_free(ab);
+		RS_free(ab);
 	}
 	sol->solved[which_layer] = 1;
 
-	S4_TRACE("I  ab[0] = %f,%f [omega=%f]\n", (*layer_solution)[0].real(), (*layer_solution)[0].imag(), S->omega[0]);
+	RS_TRACE("I  ab[0] = %f,%f [omega=%f]\n", (*layer_solution)[0].real(), (*layer_solution)[0].imag(), S->omega[0]);
 
-	S4_free(lq);
-	S4_free(lepstype);
-	S4_free(lthick);
+	RS_free(lq);
+	RS_free(lepstype);
+	RS_free(lthick);
 
 	if(0 != error){
-		S4_TRACE("< Simulation_ComputeLayerSolution (failed; SolveInterior returned %d) [omega=%f]\n", error, S->omega[0]);
+		RS_TRACE("< Simulation_ComputeLayerSolution (failed; SolveInterior returned %d) [omega=%f]\n", error, S->omega[0]);
 		return error;
 	}
 
-	S4_TRACE("< Simulation_ComputeLayerSolution [omega=%f]\n", S->omega[0]);
+	RS_TRACE("< Simulation_ComputeLayerSolution [omega=%f]\n", S->omega[0]);
 	return 0;
 }
 
-double Simulation_GetUnitCellSize(const S4_Simulation *S){
+double Simulation_GetUnitCellSize(const RS_Simulation *S){
 	if(0 == S->Lr[2] && 0 == S->Lr[3]){
 		return hypot(S->Lr[0], S->Lr[1]);
 	}else{
@@ -1771,22 +1771,22 @@ double Simulation_GetUnitCellSize(const S4_Simulation *S){
 	}
 }
 
-int Simulation_ComputeLayerModes(S4_Simulation *S, S4_Layer *L, LayerModes **layer_modes){
-	S4_TRACE("> Simulation_ComputeLayerModes(S=%p, L=%p (%s), modes=%p (%p)) [omega=%f]\n", S, L, (NULL != L && NULL != L->name ? L->name : ""), layer_modes, (NULL != layer_modes ? *layer_modes : NULL), S->omega[0]);
+int Simulation_ComputeLayerModes(RS_Simulation *S, RS_Layer *L, LayerModes **layer_modes){
+	RS_TRACE("> Simulation_ComputeLayerModes(S=%p, L=%p (%s), modes=%p (%p)) [omega=%f]\n", S, L, (NULL != L && NULL != L->name ? L->name : ""), layer_modes, (NULL != layer_modes ? *layer_modes : NULL), S->omega[0]);
 	if(NULL == S){
-		S4_TRACE("< Simulation_ComputeLayerModes (failed; S == NULL) [omega=%f]\n", S->omega[0]);
+		RS_TRACE("< Simulation_ComputeLayerModes (failed; S == NULL) [omega=%f]\n", S->omega[0]);
 		return -1;
 	}
 	if(NULL == L){
-		S4_TRACE("< Simulation_ComputeLayerModes (failed; L == NULL) [omega=%f]\n", S->omega[0]);
+		RS_TRACE("< Simulation_ComputeLayerModes (failed; L == NULL) [omega=%f]\n", S->omega[0]);
 		return -2;
 	}
 	if(NULL == layer_modes){
-		S4_TRACE("< Simulation_ComputeLayerModes (early exit; modes == NULL) [omega=%f]\n", S->omega[0]);
+		RS_TRACE("< Simulation_ComputeLayerModes (early exit; modes == NULL) [omega=%f]\n", S->omega[0]);
 		return 0;
 	}
 
-	S4_VERB(1, "Computing modes of layer: %s\n", NULL != L->name ? L->name : "");
+	RS_VERB(1, "Computing modes of layer: %s\n", NULL != L->name ? L->name : "");
 
 	*layer_modes = (LayerModes*)malloc(sizeof(LayerModes));
 	LayerModes *pB = *layer_modes;
@@ -1801,7 +1801,7 @@ int Simulation_ComputeLayerModes(S4_Simulation *S, S4_Layer *L, LayerModes **lay
 	size_t Epsilon2_size = n2n2;
 	pB->epstype = EPSILON2_TYPE_FULL;
 	if(0 == L->pattern.nshapes){
-		const S4_Material *M;
+		const RS_Material *M;
 		if(L->copy < 0){
 			M = &S->material[L->material];
 		}else{
@@ -1816,7 +1816,7 @@ int Simulation_ComputeLayerModes(S4_Simulation *S, S4_Layer *L, LayerModes **lay
 		kp_size = 0;
 	}
 
-	pB->q = (std::complex<double>*)S4_malloc(sizeof(std::complex<double>)*(
+	pB->q = (std::complex<double>*)RS_malloc(sizeof(std::complex<double>)*(
 		2*n + // for q
 		kp_size + phi_size + Epsilon_inv_size + Epsilon2_size
 		));
@@ -1854,7 +1854,7 @@ int Simulation_ComputeLayerModes(S4_Simulation *S, S4_Layer *L, LayerModes **lay
 	//   Else
 	//     Apply ClosedForm
 	if(0 == L->pattern.nshapes){
-		const S4_Material *M;
+		const RS_Material *M;
 		if(L->copy < 0){
 			//eps_scalar = Simulation_GetEpsilonByName(S, L->material);
 			M = &S->material[L->material];
@@ -1876,13 +1876,13 @@ int Simulation_ComputeLayerModes(S4_Simulation *S, S4_Layer *L, LayerModes **lay
 			RNP::TBLAS::SetMatrix<'A'>(n,n,0.,std::complex<double>(M->eps.abcde[2],M->eps.abcde[3]),&pB->Epsilon2[0+n*n2], n2);
 			RNP::TBLAS::SetMatrix<'A'>(n,n,0.,std::complex<double>(M->eps.abcde[6],M->eps.abcde[7]),&pB->Epsilon2[n+n*n2], n2);
 
-			S4_VERB(1, "Solving eigensystem of layer: %s\n", NULL != L->name ? L->name : "");
+			RS_VERB(1, "Solving eigensystem of layer: %s\n", NULL != L->name ? L->name : "");
 			SolveLayerEigensystem(
 				std::complex<double>(S->omega[0],S->omega[1]), n, S->kx, S->ky,
 				pB->Epsilon_inv, pB->Epsilon2, pB->epstype, pB->q, pB->kp, pB->phi);
 		}
 	}else{ // not a uniform layer
-		S4_VERB(1, "Generating epsilon matrix of layer: %s\n", NULL != L->name ? L->name : "");
+		RS_VERB(1, "Generating epsilon matrix of layer: %s\n", NULL != L->name ? L->name : "");
 		if(S->options.use_experimental_fmm){
 			FMMGetEpsilon_Experimental(S, L, n, pB->Epsilon2, pB->Epsilon_inv);
 		}else{
@@ -1915,10 +1915,10 @@ int Simulation_ComputeLayerModes(S4_Simulation *S, S4_Layer *L, LayerModes **lay
 			}
 		}
 //std::cerr << pB->Epsilon2[0] << "\t" << pB->Epsilon2[1] << "\t" << pB->Epsilon_inv[0] << "\t" << pB->Epsilon_inv[1] << std::endl;
-		S4_VERB(1, "Solving eigensystem of layer: %s\n", NULL != L->name ? L->name : "");
+		RS_VERB(1, "Solving eigensystem of layer: %s\n", NULL != L->name ? L->name : "");
 		{
 			size_t lwork = (size_t)-1;
-			double *rwork = (double*)S4_malloc(sizeof(double) * 4*n);
+			double *rwork = (double*)RS_malloc(sizeof(double) * 4*n);
 			std::complex<double> *work = NULL;
 			std::complex<double> dum;
 			SolveLayerEigensystem(
@@ -1929,7 +1929,7 @@ int Simulation_ComputeLayerModes(S4_Simulation *S, S4_Layer *L, LayerModes **lay
 				&dum, rwork, lwork
 			);
 			lwork = (int)(dum.real() + 0.5);
-			work = (std::complex<double>*)S4_malloc(sizeof(std::complex<double>) * lwork);
+			work = (std::complex<double>*)RS_malloc(sizeof(std::complex<double>) * lwork);
 			SolveLayerEigensystem(
 				std::complex<double>(S->omega[0],S->omega[1]), n,
 				S->kx, S->ky,
@@ -1937,29 +1937,29 @@ int Simulation_ComputeLayerModes(S4_Simulation *S, S4_Layer *L, LayerModes **lay
 				pB->q, pB->kp, pB->phi,
 				work, rwork, lwork
 			);
-			S4_free(work);
-			S4_free(rwork);
+			RS_free(work);
+			RS_free(rwork);
 		}
 	}
-	S4_TRACE("I  q[0] = %f,%f [omega=%f]\n", pB->q[0].real(), pB->q[0].imag(), S->omega[0]);
+	RS_TRACE("I  q[0] = %f,%f [omega=%f]\n", pB->q[0].real(), pB->q[0].imag(), S->omega[0]);
 
-	S4_TRACE("< Simulation_ComputeLayerModes [omega=%f]\n", S->omega[0]);
+	RS_TRACE("< Simulation_ComputeLayerModes [omega=%f]\n", S->omega[0]);
 	return 0;
 }
 
 // realistically, can only return an InitSolution code
-int S4_Simulation_GetPowerFlux(S4_Simulation *S, S4_LayerID id, const double *offset, double *powers){
-	S4_TRACE("> S4_Simulation_GetPowerFlux(S=%p, layer=%d, offset=%f, powers=%p) [omega=%f]\n",
+int RS_Simulation_GetPowerFlux(RS_Simulation *S, RS_LayerID id, const double *offset, double *powers){
+	RS_TRACE("> RS_Simulation_GetPowerFlux(S=%p, layer=%d, offset=%f, powers=%p) [omega=%f]\n",
 		S, id, (NULL == offset ? 0 : *offset), powers, S->omega[0]);
 	int ret = 0;
 	if(NULL == S){ ret = -1; }
 	if(id < 0 || id >= S->n_layers){ return -2; }
 	if(NULL == powers){ ret = -4; }
 	if(0 != ret){
-		S4_TRACE("< S4_Simulation_GetPowerFlux (failed; ret = %d) [omega=%f]\n", ret, S->omega[0]);
+		RS_TRACE("< RS_Simulation_GetPowerFlux (failed; ret = %d) [omega=%f]\n", ret, S->omega[0]);
 		return ret;
 	}
-	S4_Layer *layer = &S->layer[id];
+	RS_Layer *layer = &S->layer[id];
 
 	LayerModes *Lmodes;
 	std::complex<double> *Lsoln;
@@ -1967,7 +1967,7 @@ int S4_Simulation_GetPowerFlux(S4_Simulation *S, S4_LayerID id, const double *of
 
 	ret = Simulation_GetLayerSolution(S, layer, &Lmodes, &Lsoln);
 	if(0 != ret){
-		S4_TRACE("< S4_Simulation_GetPowerFlux (failed; Simulation_GetLayerSolution returned %d) [omega=%f]\n", ret, S->omega[0]);
+		RS_TRACE("< RS_Simulation_GetPowerFlux (failed; Simulation_GetLayerSolution returned %d) [omega=%f]\n", ret, S->omega[0]);
 		return ret;
 	}
 
@@ -1975,9 +1975,9 @@ int S4_Simulation_GetPowerFlux(S4_Simulation *S, S4_LayerID id, const double *of
 	const int n2 = 2*n;
 	const int n4 = 2*n2;
 
-	std::complex<double> *ab = (std::complex<double> *)S4_malloc(sizeof(std::complex<double>) * (n4+4*n2));
+	std::complex<double> *ab = (std::complex<double> *)RS_malloc(sizeof(std::complex<double>) * (n4+4*n2));
 	if(NULL == ab){
-		S4_TRACE("< S4_Simulation_GetPowerFlux (failed; allocation failed) [omega=%f]\n", S->omega[0]);
+		RS_TRACE("< RS_Simulation_GetPowerFlux (failed; allocation failed) [omega=%f]\n", S->omega[0]);
 		return 1;
 	}
 	std::complex<double> *work = ab + n4;
@@ -1992,20 +1992,20 @@ int S4_Simulation_GetPowerFlux(S4_Simulation *S, S4_LayerID id, const double *of
 	powers[2] = forw.imag();
 	powers[3] = back.imag();
 
-	S4_free(ab);
-	S4_TRACE("< S4_Simulation_GetPowerFlux returning %f, %f, %f, %f [omega=%f]\n", powers[0], powers[1], powers[2], powers[3], S->omega[0]);
+	RS_free(ab);
+	RS_TRACE("< RS_Simulation_GetPowerFlux returning %f, %f, %f, %f [omega=%f]\n", powers[0], powers[1], powers[2], powers[3], S->omega[0]);
 	return 0;
 }
 
-int Simulation_GetPoyntingFluxByG(S4_Simulation *S, S4_Layer *layer, double offset, double *powers){
-	S4_TRACE("> Simulation_GetPoyntingFluxByG(S=%p, layer=%p, offset=%f, powers=%p) [omega=%f]\n",
+int Simulation_GetPoyntingFluxByG(RS_Simulation *S, RS_Layer *layer, double offset, double *powers){
+	RS_TRACE("> Simulation_GetPoyntingFluxByG(S=%p, layer=%p, offset=%f, powers=%p) [omega=%f]\n",
 		S, layer, offset, powers, S->omega[0]);
 	int ret = 0;
 	if(NULL == S){ ret = -1; }
 	if(NULL == layer){ ret = -2; }
 	if(NULL == powers){ ret = -4; }
 	if(0 != ret){
-		S4_TRACE("< Simulation_GetPoyntingFluxByG (failed; ret = %d) [omega=%f]\n", ret, S->omega[0]);
+		RS_TRACE("< Simulation_GetPoyntingFluxByG (failed; ret = %d) [omega=%f]\n", ret, S->omega[0]);
 		return ret;
 	}
 
@@ -2014,7 +2014,7 @@ int Simulation_GetPoyntingFluxByG(S4_Simulation *S, S4_Layer *layer, double offs
 
 	ret = Simulation_GetLayerSolution(S, layer, &Lmodes, &Lsoln);
 	if(0 != ret){
-		S4_TRACE("< Simulation_GetPoyntingFluxByG (failed; Simulation_GetLayerSolution returned %d) [omega=%f]\n", ret, S->omega[0]);
+		RS_TRACE("< Simulation_GetPoyntingFluxByG (failed; Simulation_GetLayerSolution returned %d) [omega=%f]\n", ret, S->omega[0]);
 		return ret;
 	}
 
@@ -2022,9 +2022,9 @@ int Simulation_GetPoyntingFluxByG(S4_Simulation *S, S4_Layer *layer, double offs
 	const int n2 = 2*n;
 	const int n4 = 2*n2;
 
-	std::complex<double> *ab = (std::complex<double> *)S4_malloc(sizeof(std::complex<double>) * (n2+n4+4*n2));
+	std::complex<double> *ab = (std::complex<double> *)RS_malloc(sizeof(std::complex<double>) * (n2+n4+4*n2));
 	if(NULL == ab){
-		S4_TRACE("< Simulation_GetPoyntingFluxByG (failed; allocation failed) [omega=%f]\n", S->omega[0]);
+		RS_TRACE("< Simulation_GetPoyntingFluxByG (failed; allocation failed) [omega=%f]\n", S->omega[0]);
 		return 1;
 	}
 	std::complex<double> *forw = ab + n4;
@@ -2042,19 +2042,19 @@ int Simulation_GetPoyntingFluxByG(S4_Simulation *S, S4_Layer *layer, double offs
 		powers[4*i+3] = back[i].imag();
 	}
 
-	S4_free(ab);
-	S4_TRACE("< Simulation_GetPoyntingFluxByG [omega=%f]\n", S->omega[0]);
+	RS_free(ab);
+	RS_TRACE("< Simulation_GetPoyntingFluxByG [omega=%f]\n", S->omega[0]);
 	return 0;
 }
 
-int Simulation_GetPropagationConstants(S4_Simulation *S, S4_Layer *L, double *q){
-	S4_TRACE("> Simulation_GetPropagationConstants(S=%p, layer=%p, q=%p) [omega=%f]\n",
+int Simulation_GetPropagationConstants(RS_Simulation *S, RS_Layer *L, double *q){
+	RS_TRACE("> Simulation_GetPropagationConstants(S=%p, layer=%p, q=%p) [omega=%f]\n",
 		S, L, q, S->omega[0]);
 	int ret = 0;
 	if(NULL == S){ ret = -1; }
 	if(NULL == L){ ret = -2; }
 	if(0 != ret){
-		S4_TRACE("< Simulation_GetPropagationConstants (failed; ret = %d) [omega=%f]\n", ret, S->omega[0]);
+		RS_TRACE("< Simulation_GetPropagationConstants (failed; ret = %d) [omega=%f]\n", ret, S->omega[0]);
 		return ret;
 	}
 
@@ -2064,7 +2064,7 @@ int Simulation_GetPropagationConstants(S4_Simulation *S, S4_Layer *L, double *q)
 	LayerModes *layer_modes;
 	bool found_layer = false;
 	for(int i = 0; i < S->n_layers; ++i){
-		S4_Layer *SL = &(S->layer[i]);
+		RS_Layer *SL = &(S->layer[i]);
 		if(NULL == SL->modes && SL->copy < 0){
 			Simulation_ComputeLayerModes(S, SL, &SL->modes);
 		}
@@ -2078,7 +2078,7 @@ int Simulation_GetPropagationConstants(S4_Simulation *S, S4_Layer *L, double *q)
 		}
 	}
 	if(!found_layer){
-		S4_TRACE("< Simulation_GetPropagationConstants (failed; could not find layer) [omega=%f]\n", S->omega[0]);
+		RS_TRACE("< Simulation_GetPropagationConstants (failed; could not find layer) [omega=%f]\n", S->omega[0]);
 		return -1;
 	}
 
@@ -2087,18 +2087,18 @@ int Simulation_GetPropagationConstants(S4_Simulation *S, S4_Layer *L, double *q)
 		q[2*i+1] = layer_modes->q[i].imag();
 	}
 
-	S4_TRACE("< Simulation_GetPropagationConstants [omega=%f]\n", S->omega[0]);
+	RS_TRACE("< Simulation_GetPropagationConstants [omega=%f]\n", S->omega[0]);
 	return ret;
 }
 
-int Simulation_GetAmplitudes(S4_Simulation *S, S4_Layer *layer, double offset, double *forw, double *back){
-	S4_TRACE("> Simulation_GetAmplitudes(S=%p, layer=%p, offset=%f, forw=%p, back=%p) [omega=%f]\n",
+int Simulation_GetAmplitudes(RS_Simulation *S, RS_Layer *layer, double offset, double *forw, double *back){
+	RS_TRACE("> Simulation_GetAmplitudes(S=%p, layer=%p, offset=%f, forw=%p, back=%p) [omega=%f]\n",
 		S, layer, offset, forw, back, S->omega[0]);
 	int ret = 0;
 	if(NULL == S){ ret = -1; }
 	if(NULL == layer){ ret = -2; }
 	if(0 != ret){
-		S4_TRACE("< Simulation_GetAmplitudes (failed; ret = %d) [omega=%f]\n", ret, S->omega[0]);
+		RS_TRACE("< Simulation_GetAmplitudes (failed; ret = %d) [omega=%f]\n", ret, S->omega[0]);
 		return ret;
 	}
 
@@ -2107,7 +2107,7 @@ int Simulation_GetAmplitudes(S4_Simulation *S, S4_Layer *layer, double offset, d
 
 	ret = Simulation_GetLayerSolution(S, layer, &Lmodes, &Lsoln);
 	if(0 != ret){
-		S4_TRACE("< Simulation_GetAmplitudes (failed; Simulation_GetLayerSolution returned %d) [omega=%f]\n", ret, S->omega[0]);
+		RS_TRACE("< Simulation_GetAmplitudes (failed; Simulation_GetLayerSolution returned %d) [omega=%f]\n", ret, S->omega[0]);
 		return ret;
 	}
 
@@ -2115,9 +2115,9 @@ int Simulation_GetAmplitudes(S4_Simulation *S, S4_Layer *layer, double offset, d
 	const int n2 = 2*n;
 	const int n4 = 2*n2;
 
-	std::complex<double> *ab = (std::complex<double> *)S4_malloc(sizeof(std::complex<double>) * n4);
+	std::complex<double> *ab = (std::complex<double> *)RS_malloc(sizeof(std::complex<double>) * n4);
 	if(NULL == ab){
-		S4_TRACE("< Simulation_GetAmplitudes (failed; allocation failed) [omega=%f]\n", S->omega[0]);
+		RS_TRACE("< Simulation_GetAmplitudes (failed; allocation failed) [omega=%f]\n", S->omega[0]);
 		return 1;
 	}
 
@@ -2137,25 +2137,25 @@ int Simulation_GetAmplitudes(S4_Simulation *S, S4_Layer *layer, double offset, d
 		}
 	}
 
-	S4_free(ab);
-	S4_TRACE("< Simulation_GetAmplitudes [omega=%f]\n", S->omega[0]);
+	RS_free(ab);
+	RS_TRACE("< Simulation_GetAmplitudes [omega=%f]\n", S->omega[0]);
 	return 0;
 }
 
 
-int S4_Simulation_GetWaves(S4_Simulation *S, S4_LayerID id, S4_real *wave){
-	S4_TRACE("> Simulation_GetWaves(S=%p, layer=%d, wave=%p) [omega=%f]\n",
+int RS_Simulation_GetWaves(RS_Simulation *S, RS_LayerID id, RS_real *wave){
+	RS_TRACE("> Simulation_GetWaves(S=%p, layer=%d, wave=%p) [omega=%f]\n",
 		S, id, wave, S->omega[0]);
 	int ret = 0;
 	if(NULL == S){ ret = -1; }
 	if(id < 0 || id >= S->n_layers){ ret = -2; }
 	if(NULL == wave){ ret = -3; }
 	if(0 != ret){
-		S4_TRACE("< Simulation_GetWaves (failed; ret = %d) [omega=%f]\n", ret, S->omega[0]);
+		RS_TRACE("< Simulation_GetWaves (failed; ret = %d) [omega=%f]\n", ret, S->omega[0]);
 		return ret;
 	}
 
-	S4_Layer *layer = &S->layer[id];
+	RS_Layer *layer = &S->layer[id];
 
 	const double w = S->omega[0];
 
@@ -2163,7 +2163,7 @@ int S4_Simulation_GetWaves(S4_Simulation *S, S4_LayerID id, S4_real *wave){
 	std::complex<double> *Lsoln;
 	ret = Simulation_GetLayerSolution(S, layer, &Lmodes, &Lsoln);
 	if(0 != ret){
-		S4_TRACE("< Simulation_GetWaves (failed; Simulation_GetLayerSolution returned %d) [omega=%f]\n", ret, S->omega[0]);
+		RS_TRACE("< Simulation_GetWaves (failed; Simulation_GetLayerSolution returned %d) [omega=%f]\n", ret, S->omega[0]);
 		return ret;
 	}
 
@@ -2211,7 +2211,7 @@ if(qi.imag() == 0){
 			// The E field is Cross[H,{kx,ky,(qsign*qi.real())}] / leps
 			std::complex<double> E[2][3];
 			const double sgn(qsign);
-			const S4_Material *M = NULL;
+			const RS_Material *M = NULL;
 			if(layer->material >= 0){
 				M = &S->material[layer->material];
 			}else{
@@ -2277,24 +2277,24 @@ if(qi.imag() == 0){
 		}
 	}
 
-	S4_TRACE("< Simulation_GetWaves [omega=%f]\n", S->omega[0]);
+	RS_TRACE("< Simulation_GetWaves [omega=%f]\n", S->omega[0]);
 	return 0;
 }
 
-void Simulation_DestroySolution(S4_Simulation *S){
-	S4_TRACE("> Simulation_DestroySolution(S=%p) [omega=%f]\n", S, S->omega[0]);
+void Simulation_DestroySolution(RS_Simulation *S){
+	RS_TRACE("> Simulation_DestroySolution(S=%p) [omega=%f]\n", S, S->omega[0]);
 	Solution_ *sol;
 	if(NULL == S){
-		S4_TRACE("< Simulation_DestroySolution (early exit; S == NULL) [omega=%f]\n", S->omega[0]);
+		RS_TRACE("< Simulation_DestroySolution (early exit; S == NULL) [omega=%f]\n", S->omega[0]);
 		return;
 	}
 	sol = S->solution;
 	if(NULL == sol){
-		S4_TRACE("< Simulation_DestroySolution (early exit; sol == NULL) [omega=%f]\n", S->omega[0]);
+		RS_TRACE("< Simulation_DestroySolution (early exit; sol == NULL) [omega=%f]\n", S->omega[0]);
 		return;
 	}
 	if(NULL != sol->ab){
-		S4_free(sol->ab);
+		RS_free(sol->ab);
 		sol->ab = NULL;
 	}
 	if(NULL != sol->solved){
@@ -2303,19 +2303,19 @@ void Simulation_DestroySolution(S4_Simulation *S){
 	}
 	free(S->solution); S->solution = NULL;
 
-	S4_TRACE("< Simulation_DestroySolution [omega=%f]\n", S->omega[0]);
+	RS_TRACE("< Simulation_DestroySolution [omega=%f]\n", S->omega[0]);
 }
 
-void Simulation_DestroyLayerSolutions(S4_Simulation *S){
-	S4_TRACE("> Simulation_DestroyLayerSolutions(S=%p) [omega=%f]\n", S, S->omega[0]);
+void Simulation_DestroyLayerSolutions(RS_Simulation *S){
+	RS_TRACE("> Simulation_DestroyLayerSolutions(S=%p) [omega=%f]\n", S, S->omega[0]);
 	Solution_ *sol;
 	if(NULL == S){
-		S4_TRACE("< Simulation_DestroyLayerSolutions (early exit; S == NULL) [omega=%f]\n", S->omega[0]);
+		RS_TRACE("< Simulation_DestroyLayerSolutions (early exit; S == NULL) [omega=%f]\n", S->omega[0]);
 		return;
 	}
 	sol = S->solution;
 	if(NULL == sol){
-		S4_TRACE("< Simulation_DestroyLayerSolutions (early exit; sol == NULL) [omega=%f]\n", S->omega[0]);
+		RS_TRACE("< Simulation_DestroyLayerSolutions (early exit; sol == NULL) [omega=%f]\n", S->omega[0]);
 		return;
 	}
 
@@ -2323,44 +2323,44 @@ void Simulation_DestroyLayerSolutions(S4_Simulation *S){
 		sol->solved[i] = 0;
 	}
 
-	S4_TRACE("< Simulation_DestroyLayerSolutions [omega=%f]\n", S->omega[0]);
+	RS_TRACE("< Simulation_DestroyLayerSolutions [omega=%f]\n", S->omega[0]);
 }
 
-S4_Material* Simulation_GetMaterialByName(const S4_Simulation *S, const char *name, int *index){
-	S4_TRACE("> Simulation_GetMaterialByName(S=%p, name=%p (%s)) [omega=%f]\n",
+RS_Material* Simulation_GetMaterialByName(const RS_Simulation *S, const char *name, int *index){
+	RS_TRACE("> Simulation_GetMaterialByName(S=%p, name=%p (%s)) [omega=%f]\n",
 		S, name, (NULL == name ? "" : name), S->omega[0]);
 	for(int i = 0; i < S->n_materials; ++i){
 		if(0 == strcmp(S->material[i].name, name)){
 			if(NULL != index){ *index = i; }
-			S4_TRACE("< Simulation_GetMaterialByName returning %s [omega=%f]\n", S->material[i].name, S->omega[0]);
+			RS_TRACE("< Simulation_GetMaterialByName returning %s [omega=%f]\n", S->material[i].name, S->omega[0]);
 			return &(S->material[i]);
 		}
 	}
-	S4_TRACE("< Simulation_GetMaterialByName (failed; material name not found) [omega=%f]\n", S->omega[0]);
+	RS_TRACE("< Simulation_GetMaterialByName (failed; material name not found) [omega=%f]\n", S->omega[0]);
 	return NULL;
 }
 
-S4_Material* Simulation_GetMaterialByIndex(const S4_Simulation *S, int i){
-	S4_TRACE("> Simulation_GetMaterialByIndex(S=%p, i=%d) [omega=%f]\n", S, i, S->omega[0]);
+RS_Material* Simulation_GetMaterialByIndex(const RS_Simulation *S, int i){
+	RS_TRACE("> Simulation_GetMaterialByIndex(S=%p, i=%d) [omega=%f]\n", S, i, S->omega[0]);
 	if(i < 0 || i >= S->n_materials){
-		S4_TRACE("< Simulation_GetMaterialByIndex (failed; index out of bounds) [omega=%f]\n", S->omega[0]);
+		RS_TRACE("< Simulation_GetMaterialByIndex (failed; index out of bounds) [omega=%f]\n", S->omega[0]);
 		return NULL;
 	}
-	S4_TRACE("< Simulation_GetMaterialByIndex returning %s [omega=%f]\n", S->material[i].name, S->omega[0]);
+	RS_TRACE("< Simulation_GetMaterialByIndex returning %s [omega=%f]\n", S->material[i].name, S->omega[0]);
 	return &(S->material[i]);
 }
-S4_Layer* Simulation_GetLayerByName(const S4_Simulation *S, const char *name, int *index){
-	S4_TRACE("> Simulation_GetLayerByName(S=%p, name=%p (%s), index=%p) [omega=%f]\n",
+RS_Layer* Simulation_GetLayerByName(const RS_Simulation *S, const char *name, int *index){
+	RS_TRACE("> Simulation_GetLayerByName(S=%p, name=%p (%s), index=%p) [omega=%f]\n",
 		S, name, (NULL == name ? "" : name), index, S->omega[0]);
 	if(NULL == S || NULL == name){ return NULL; }
 	for(int i = 0; i < S->n_layers; ++i){
 		if(0 == strcmp(S->layer[i].name, name)){
 			if(NULL != index){ *index = i; }
-			S4_TRACE("< Simulation_GetLayerByName returning %p [omega=%f]\n", &(S->layer[i]), S->omega[0]);
+			RS_TRACE("< Simulation_GetLayerByName returning %p [omega=%f]\n", &(S->layer[i]), S->omega[0]);
 			return &(S->layer[i]);
 		}
 	}
-	S4_TRACE("< Simulation_GetLayerByName (failed; name not found) [omega=%f]\n", S->omega[0]);
+	RS_TRACE("< Simulation_GetLayerByName (failed; name not found) [omega=%f]\n", S->omega[0]);
 	return NULL;
 }
 
@@ -2403,19 +2403,19 @@ static void output_povray_shape(FILE *f, shape *s, double t){
 	fprintf(f, "}\n");
 }
 
-int Simulation_OutputStructurePOVRay(S4_Simulation *S, FILE *fp){
-	S4_TRACE("> Simulation_OutputStructurePOVRay(S=%p)\n", S);
+int Simulation_OutputStructurePOVRay(RS_Simulation *S, FILE *fp){
+	RS_TRACE("> Simulation_OutputStructurePOVRay(S=%p)\n", S);
 	int ret = 0;
 	if(NULL == S){ ret = -1; }
 	if(0 != ret){
-		S4_TRACE("< Simulation_OutputStructurePOVRay (failed; ret = %d)\n", ret);
+		RS_TRACE("< Simulation_OutputStructurePOVRay (failed; ret = %d)\n", ret);
 		return ret;
 	}
 
 	if(NULL == S->solution){
 		ret = Simulation_InitSolution(S);
 		if(0 != ret){
-			S4_TRACE("< Simulation_OutputStructurePOVRay (failed; Simulation_InitSolution returned %d)\n", ret);
+			RS_TRACE("< Simulation_OutputStructurePOVRay (failed; Simulation_InitSolution returned %d)\n", ret);
 			return ret;
 		}
 	}
@@ -2524,7 +2524,7 @@ int Simulation_OutputStructurePOVRay(S4_Simulation *S, FILE *fp){
 
 	// Output material texture definitions
 	for(int i = 0; i < S->n_materials; ++i){
-		const S4_Material *M = &(S->material[i]);
+		const RS_Material *M = &(S->material[i]);
 		if(NULL != M->name){
 			if(0 == strcasecmp("air", M->name) || 0 == strcasecmp("vacuum", M->name)){
 				fprintf(f, "#declare Material_%s = texture{ pigment{ color transmit 1.0 } }\n", M->name);
@@ -2542,7 +2542,7 @@ int Simulation_OutputStructurePOVRay(S4_Simulation *S, FILE *fp){
 	unsigned int layer_name_counter = 0;
 	double layer_offset = 0;
 	for(int i = 0; i < S->n_layers; ++i){
-		const S4_Layer *L = &(S->layer[i]);
+		const RS_Layer *L = &(S->layer[i]);
 		const char *name = L->name;
 		if(NULL == name){
 			fprintf(f, "#declare Layer_%u = union{\n", layer_name_counter++);
@@ -2584,7 +2584,7 @@ int Simulation_OutputStructurePOVRay(S4_Simulation *S, FILE *fp){
 		}
 
 		if(L->copy >= 0){
-			const S4_Layer *Lcopy = &S->layer[L->copy];
+			const RS_Layer *Lcopy = &S->layer[L->copy];
 			if(NULL != S->material[Lcopy->material].name){
 				fprintf(f, "\t\ttexture { Material_%s }\n", S->material[Lcopy->material].name);
 			}else{
@@ -2603,7 +2603,7 @@ int Simulation_OutputStructurePOVRay(S4_Simulation *S, FILE *fp){
 		for(int i = 0; i < L->pattern.nshapes; ++i){
 			comment_out = false;
 
-			const S4_Material *m = &S->material[L->pattern.shapes[i].tag];
+			const RS_Material *m = &S->material[L->pattern.shapes[i].tag];
 			if(NULL != m && NULL != m->name){
 				if(0 == strcasecmp("air", m->name) || 0 == strcasecmp("vacuum", m->name)){
 					comment_out = true;
@@ -2646,7 +2646,7 @@ int Simulation_OutputStructurePOVRay(S4_Simulation *S, FILE *fp){
 	);
 	layer_name_counter = 0;
 	for(int i = 0; i < S->n_layers; ++i){
-		const S4_Layer *L = &(S->layer[i]);
+		const RS_Layer *L = &(S->layer[i]);
 		const char *name = L->name;
 		const char *comment = (0 < i && i+1 < S->n_layers) ? "" : "//";
 		if(NULL == name){
@@ -2661,18 +2661,18 @@ int Simulation_OutputStructurePOVRay(S4_Simulation *S, FILE *fp){
 		"Axes\n"
 		"Layers\n"
 	);
-	S4_TRACE("< Simulation_OutputStructurePOVRay\n");
+	RS_TRACE("< Simulation_OutputStructurePOVRay\n");
 	return 0;
 }
 
-int Simulation_OutputLayerPatternDescription(S4_Simulation *S, S4_Layer *layer, FILE *fp){
-	S4_TRACE("> Simulation_OutputLayerPatternDescription(S=%p, layer=%p)\n",
+int Simulation_OutputLayerPatternDescription(RS_Simulation *S, RS_Layer *layer, FILE *fp){
+	RS_TRACE("> Simulation_OutputLayerPatternDescription(S=%p, layer=%p)\n",
 		S, layer);
 	int ret = 0;
 	if(NULL == S){ ret = -1; }
 	if(NULL == layer){ ret = -2; }
 	if(0 != ret){
-		S4_TRACE("< Simulation_OutputLayerPatternDescription (failed; ret = %d)\n", ret);
+		RS_TRACE("< Simulation_OutputLayerPatternDescription (failed; ret = %d)\n", ret);
 		return ret;
 	}
 
@@ -2745,26 +2745,26 @@ int Simulation_OutputLayerPatternDescription(S4_Simulation *S, S4_Layer *layer, 
 	fprintf(f, "showpage\n");
 
 
-	S4_TRACE("< Simulation_OutputLayerPatternDescription\n");
+	RS_TRACE("< Simulation_OutputLayerPatternDescription\n");
 	return 0;
 }
 
-int Simulation_OutputLayerPatternRealization(S4_Simulation *S, S4_Layer *layer, int nx, int ny, FILE *fp){
-	S4_TRACE("> Simulation_OutputLayerPatternRealization(S=%p, layer=%p, nx=%d, ny=%d)\n",
+int Simulation_OutputLayerPatternRealization(RS_Simulation *S, RS_Layer *layer, int nx, int ny, FILE *fp){
+	RS_TRACE("> Simulation_OutputLayerPatternRealization(S=%p, layer=%p, nx=%d, ny=%d)\n",
 		S, layer, nx, ny);
 	if(NULL == S){
-		S4_TRACE("< Simulation_OutputLayerPatternRealization (failed; S == NULL)\n");
+		RS_TRACE("< Simulation_OutputLayerPatternRealization (failed; S == NULL)\n");
 		return -1;
 	}
 	if(NULL == layer){
-		S4_TRACE("< Simulation_OutputLayerPatternRealization (failed; layer == NULL)\n");
+		RS_TRACE("< Simulation_OutputLayerPatternRealization (failed; layer == NULL)\n");
 		return -2;
 	}
 
 	if(NULL == S->solution){
 		int error = Simulation_InitSolution(S);
 		if(0 != error){
-			S4_TRACE("< Simulation_OutputLayerPatternRealization (failed; Simulation_InitSolution returned %d)\n", error);
+			RS_TRACE("< Simulation_OutputLayerPatternRealization (failed; Simulation_InitSolution returned %d)\n", error);
 			return error;
 		}
 	}
@@ -2772,9 +2772,9 @@ int Simulation_OutputLayerPatternRealization(S4_Simulation *S, S4_Layer *layer, 
 	FILE *f = fp;
 	if(NULL == fp){ f = stdout; }
 
-	double *values = (double*)S4_malloc(sizeof(double)*2*(layer->pattern.nshapes+1));
+	double *values = (double*)RS_malloc(sizeof(double)*2*(layer->pattern.nshapes+1));
 	for(int i = -1; i < layer->pattern.nshapes; ++i){
-		const S4_Material *M;
+		const RS_Material *M;
 		if(-1 == i){
 			M = &S->material[layer->material];
 		}else{
@@ -2821,31 +2821,31 @@ int Simulation_OutputLayerPatternRealization(S4_Simulation *S, S4_Layer *layer, 
 		fprintf(f, "\n");
 	}
 
-	S4_free(values);
+	RS_free(values);
 
-	S4_TRACE("< Simulation_OutputLayerPatternRealization\n");
+	RS_TRACE("< Simulation_OutputLayerPatternRealization\n");
 	return 0;
 }
-int Simulation_GetField(S4_Simulation *S, const double r[3], double fE[6], double fH[6]){
-	S4_TRACE("> Simulation_GetField(S=%p, r=%p (%f,%f,%f), fE=%p, fH=%p)\n",
+int Simulation_GetField(RS_Simulation *S, const double r[3], double fE[6], double fH[6]){
+	RS_TRACE("> Simulation_GetField(S=%p, r=%p (%f,%f,%f), fE=%p, fH=%p)\n",
 		S, r, (NULL == r ? 0 : r[0]), (NULL == r ? 0 : r[1]), (NULL == r ? 0 : r[2]), fE, fH);
 	if(NULL == S){
-		S4_TRACE("< Simulation_GetField (failed; S == NULL)\n");
+		RS_TRACE("< Simulation_GetField (failed; S == NULL)\n");
 		return -1;
 	}
 	if(NULL == r){
-		S4_TRACE("< Simulation_GetField (failed; r == NULL)\n");
+		RS_TRACE("< Simulation_GetField (failed; r == NULL)\n");
 		return -2;
 	}
 	if(NULL == fE && NULL == fH){
-		S4_TRACE("< Simulation_GetField (early exit; fE and fH are NULL)\n");
+		RS_TRACE("< Simulation_GetField (early exit; fE and fH are NULL)\n");
 		return 0;
 	}
 
 	const size_t n2 = 2*S->n_G;
 	const size_t n4 = 2*n2;
 
-	S4_Layer *L = NULL;
+	RS_Layer *L = NULL;
 	double dz = r[2];
 	{
 		double z = 0;
@@ -2858,7 +2858,7 @@ int Simulation_GetField(S4_Simulation *S, const double r[3], double fE[6], doubl
 		L = &(S->layer[i]);
 	}
 	if(NULL == L){
-		S4_TRACE("< Simulation_GetField (failed; no layers found)\n");
+		RS_TRACE("< Simulation_GetField (failed; no layers found)\n");
 		return 14;
 	}
 //fprintf(stderr, "(%f,%f,%f) in %s: dz = %f\n", r[0], r[1], r[2], L->name, dz);
@@ -2867,13 +2867,13 @@ int Simulation_GetField(S4_Simulation *S, const double r[3], double fE[6], doubl
 	std::complex<double> *Lsoln;
 	int ret = Simulation_GetLayerSolution(S, L, &Lmodes, &Lsoln);
 	if(0 != ret){
-		S4_TRACE("< Simulation_GetField (failed; Simulation_GetLayerSolution returned %d)\n", ret);
+		RS_TRACE("< Simulation_GetField (failed; Simulation_GetLayerSolution returned %d)\n", ret);
 		return ret;
 	}
 
-	std::complex<double> *ab = (std::complex<double>*)S4_malloc(sizeof(std::complex<double>) * (n4+8*n2));
+	std::complex<double> *ab = (std::complex<double>*)RS_malloc(sizeof(std::complex<double>) * (n4+8*n2));
 	if(NULL == ab){
-		S4_TRACE("< Simulation_GetField (failed; allocation failed)\n");
+		RS_TRACE("< Simulation_GetField (failed; allocation failed)\n");
 		return 1;
 	}
 	std::complex<double> *work = ab + n4;
@@ -2902,32 +2902,32 @@ int Simulation_GetField(S4_Simulation *S, const double r[3], double fE[6], doubl
 		fH[4] = hfield[1].imag();
 		fH[5] = hfield[2].imag();
 	}
-	S4_free(ab);
+	RS_free(ab);
 
-	S4_TRACE("< Simulation_GetField\n");
+	RS_TRACE("< Simulation_GetField\n");
 	return 0;
 }
 
-int Simulation_GetEField(S4_Simulation *S, const double r[3], std::complex<double> efield[3], int solvetype){
-	S4_TRACE("> Simulation_GetField(S=%p, r=%p (%f,%f,%f), fE=%p)\n",
+int Simulation_GetEField(RS_Simulation *S, const double r[3], std::complex<double> efield[3], int solvetype){
+	RS_TRACE("> Simulation_GetField(S=%p, r=%p (%f,%f,%f), fE=%p)\n",
 		S, r, (NULL == r ? 0 : r[0]), (NULL == r ? 0 : r[1]), (NULL == r ? 0 : r[2]), fE, solvetype);
 	if(NULL == S){
-		S4_TRACE("< Simulation_GetField (failed; S == NULL)\n");
+		RS_TRACE("< Simulation_GetField (failed; S == NULL)\n");
 		return -1;
 	}
 	if(NULL == r){
-		S4_TRACE("< Simulation_GetField (failed; r == NULL)\n");
+		RS_TRACE("< Simulation_GetField (failed; r == NULL)\n");
 		return -2;
 	}
 	if(NULL == efield ){
-		S4_TRACE("< Simulation_GetField (early exit; fE and fH are NULL)\n");
+		RS_TRACE("< Simulation_GetField (early exit; fE and fH are NULL)\n");
 		return 0;
 	}
 
 	const size_t n2 = 2*S->n_G;
 	const size_t n4 = 2*n2;
 
-	S4_Layer *L = NULL;
+	RS_Layer *L = NULL;
 	double dz = r[2];
 	{
 		double z = 0;
@@ -2940,7 +2940,7 @@ int Simulation_GetEField(S4_Simulation *S, const double r[3], std::complex<doubl
 		L = &(S->layer[i]);
 	}
 	if(NULL == L){
-		S4_TRACE("< Simulation_GetField (failed; no layers found)\n");
+		RS_TRACE("< Simulation_GetField (failed; no layers found)\n");
 		return 14;
 	}
 //fprintf(stderr, "(%f,%f,%f) in %s: dz = %f\n", r[0], r[1], r[2], L->name, dz);
@@ -2949,13 +2949,13 @@ int Simulation_GetEField(S4_Simulation *S, const double r[3], std::complex<doubl
 	std::complex<double> *Lsoln;
 	int ret = Simulation_GetLayerSolution(S, L, &Lmodes, &Lsoln);
 	if(0 != ret){
-		S4_TRACE("< Simulation_GetField (failed; Simulation_GetLayerSolution returned %d)\n", ret);
+		RS_TRACE("< Simulation_GetField (failed; Simulation_GetLayerSolution returned %d)\n", ret);
 		return ret;
 	}
 
-	std::complex<double> *ab = (std::complex<double>*)S4_malloc(sizeof(std::complex<double>) * (n4+8*n2));
+	std::complex<double> *ab = (std::complex<double>*)RS_malloc(sizeof(std::complex<double>) * (n4+8*n2));
 	if(NULL == ab){
-		S4_TRACE("< Simulation_GetField (failed; allocation failed)\n");
+		RS_TRACE("< Simulation_GetField (failed; allocation failed)\n");
 		return 1;
 	}
 	std::complex<double> *work = ab + n4;
@@ -2975,32 +2975,32 @@ int Simulation_GetEField(S4_Simulation *S, const double r[3], std::complex<doubl
 		efield[2] = fE[2];
 	}
 
-	S4_free(ab);
+	RS_free(ab);
 
-	S4_TRACE("< Simulation_GetField\n");
+	RS_TRACE("< Simulation_GetField\n");
 	return 0;
 }
 
-int Simulation_GetFieldPlane(S4_Simulation *S, int nxy[2], double zz, double *E, double *H){
-	S4_TRACE("> Simulation_GetFieldPlane(S=%p, nxy=%p (%d,%d), z=%f, E=%p, H=%p)\n",
+int Simulation_GetFieldPlane(RS_Simulation *S, int nxy[2], double zz, double *E, double *H){
+	RS_TRACE("> Simulation_GetFieldPlane(S=%p, nxy=%p (%d,%d), z=%f, E=%p, H=%p)\n",
 		S, nxy, (NULL == nxy ? 0 : nxy[0]), (NULL == nxy ? 0 : nxy[1]), zz, E, H);
 	if(NULL == S){
-		S4_TRACE("< Simulation_GetFieldPlane (failed; S == NULL)\n");
+		RS_TRACE("< Simulation_GetFieldPlane (failed; S == NULL)\n");
 		return -1;
 	}
 	if(NULL == nxy){
-		S4_TRACE("< Simulation_GetFieldPlane (failed; r == NULL)\n");
+		RS_TRACE("< Simulation_GetFieldPlane (failed; r == NULL)\n");
 		return -2;
 	}
 	if(NULL == E || NULL == H){
-		S4_TRACE("< Simulation_GetFieldPlane (early exit; E or H are NULL)\n");
+		RS_TRACE("< Simulation_GetFieldPlane (early exit; E or H are NULL)\n");
 		return 0;
 	}
 
 	const size_t n2 = 2*S->n_G;
 	const size_t n4 = 2*n2;
 
-	S4_Layer *L = NULL;
+	RS_Layer *L = NULL;
 	double dz = zz;
 	{
 		double z = 0;
@@ -3013,7 +3013,7 @@ int Simulation_GetFieldPlane(S4_Simulation *S, int nxy[2], double zz, double *E,
 		L = &(S->layer[i]);
 	}
 	if(NULL == L){
-		S4_TRACE("< Simulation_GetFieldPlane (failed; no layers found)\n");
+		RS_TRACE("< Simulation_GetFieldPlane (failed; no layers found)\n");
 		return 14;
 	}
 //fprintf(stderr, "(%f,%f,%f) in %s: dz = %f\n", r[0], r[1], r[2], L->name, dz);
@@ -3022,13 +3022,13 @@ int Simulation_GetFieldPlane(S4_Simulation *S, int nxy[2], double zz, double *E,
 	std::complex<double> *Lsoln;
 	int ret = Simulation_GetLayerSolution(S, L, &Lmodes, &Lsoln);
 	if(0 != ret){
-		S4_TRACE("< Simulation_GetFieldPlane (failed; Simulation_GetLayerSolution returned %d)\n", ret);
+		RS_TRACE("< Simulation_GetFieldPlane (failed; Simulation_GetLayerSolution returned %d)\n", ret);
 		return ret;
 	}
 
-	std::complex<double> *ab = (std::complex<double>*)S4_malloc(sizeof(std::complex<double>) * (n4+8*n2));
+	std::complex<double> *ab = (std::complex<double>*)RS_malloc(sizeof(std::complex<double>) * (n4+8*n2));
 	if(NULL == ab){
-		S4_TRACE("< Simulation_GetFieldPlane (failed; allocation failed)\n");
+		RS_TRACE("< Simulation_GetFieldPlane (failed; allocation failed)\n");
 		return 1;
 	}
 	std::complex<double> *work = ab + n4;
@@ -3044,32 +3044,32 @@ int Simulation_GetFieldPlane(S4_Simulation *S, int nxy[2], double zz, double *E,
 		reinterpret_cast<std::complex<double>*>(E),
 		reinterpret_cast<std::complex<double>*>(H)
 	);
-	S4_free(ab);
+	RS_free(ab);
 
-	S4_TRACE("< Simulation_GetFieldPlane\n");
+	RS_TRACE("< Simulation_GetFieldPlane\n");
 	return 0;
 }
 
-int Simulation_GetEFieldPlane(S4_Simulation *S, int nxy[2], double zz, double *E, int solvetype){
-	S4_TRACE("> Simulation_GetFieldPlane(S=%p, nxy=%p (%d,%d), z=%f, E=%p, H=%p)\n",
+int Simulation_GetEFieldPlane(RS_Simulation *S, int nxy[2], double zz, double *E, int solvetype){
+	RS_TRACE("> Simulation_GetFieldPlane(S=%p, nxy=%p (%d,%d), z=%f, E=%p, H=%p)\n",
 		S, nxy, (NULL == nxy ? 0 : nxy[0]), (NULL == nxy ? 0 : nxy[1]), zz, E, solvetype);
 	if(NULL == S){
-		S4_TRACE("< Simulation_GetFieldPlane (failed; S == NULL)\n");
+		RS_TRACE("< Simulation_GetFieldPlane (failed; S == NULL)\n");
 		return -1;
 	}
 	if(NULL == nxy){
-		S4_TRACE("< Simulation_GetFieldPlane (failed; r == NULL)\n");
+		RS_TRACE("< Simulation_GetFieldPlane (failed; r == NULL)\n");
 		return -2;
 	}
 	if(NULL == E ){
-		S4_TRACE("< Simulation_GetFieldPlane (early exit; E or H are NULL)\n");
+		RS_TRACE("< Simulation_GetFieldPlane (early exit; E or H are NULL)\n");
 		return 0;
 	}
 
 	const size_t n2 = 2*S->n_G;
 	const size_t n4 = 2*n2;
 
-	S4_Layer *L = NULL;
+	RS_Layer *L = NULL;
 	double dz = zz;
 	{
 		double z = 0;
@@ -3082,7 +3082,7 @@ int Simulation_GetEFieldPlane(S4_Simulation *S, int nxy[2], double zz, double *E
 		L = &(S->layer[i]);
 	}
 	if(NULL == L){
-		S4_TRACE("< Simulation_GetFieldPlane (failed; no layers found)\n");
+		RS_TRACE("< Simulation_GetFieldPlane (failed; no layers found)\n");
 		return 14;
 	}
 //fprintf(stderr, "(%f,%f,%f) in %s: dz = %f\n", r[0], r[1], r[2], L->name, dz);
@@ -3091,13 +3091,13 @@ int Simulation_GetEFieldPlane(S4_Simulation *S, int nxy[2], double zz, double *E
 	std::complex<double> *Lsoln;
 	int ret = Simulation_GetLayerSolution(S, L, &Lmodes, &Lsoln);
 	if(0 != ret){
-		S4_TRACE("< Simulation_GetFieldPlane (failed; Simulation_GetLayerSolution returned %d)\n", ret);
+		RS_TRACE("< Simulation_GetFieldPlane (failed; Simulation_GetLayerSolution returned %d)\n", ret);
 		return ret;
 	}
 
-	std::complex<double> *ab = (std::complex<double>*)S4_malloc(sizeof(std::complex<double>) * (n4+8*n2));
+	std::complex<double> *ab = (std::complex<double>*)RS_malloc(sizeof(std::complex<double>) * (n4+8*n2));
 	if(NULL == ab){
-		S4_TRACE("< Simulation_GetFieldPlane (failed; allocation failed)\n");
+		RS_TRACE("< Simulation_GetFieldPlane (failed; allocation failed)\n");
 		return 1;
 	}
 	std::complex<double> *work = ab + n4;
@@ -3111,32 +3111,32 @@ int Simulation_GetEFieldPlane(S4_Simulation *S, int nxy[2], double zz, double *E
 		Lmodes->q, Lmodes->kp, Lmodes->phi, Lmodes->Epsilon_inv, Lmodes->epstype,
 		ab, snxy, NULL,
 		reinterpret_cast<std::complex<double>*>(E), solvetype);
-	S4_free(ab);
+	RS_free(ab);
 
-	S4_TRACE("< Simulation_GetFieldPlane\n");
+	RS_TRACE("< Simulation_GetFieldPlane\n");
 	return 0;
 }
 
-int Simulation_GetEpsilon(S4_Simulation *S, const double r[3], double eps[2]){
-	S4_TRACE("> Simulation_GetEpsilon(S=%p, r=%p (%f,%f,%f), eps=%p)\n",
+int Simulation_GetEpsilon(RS_Simulation *S, const double r[3], double eps[2]){
+	RS_TRACE("> Simulation_GetEpsilon(S=%p, r=%p (%f,%f,%f), eps=%p)\n",
 		S, r, (NULL == r ? 0 : r[0]), (NULL == r ? 0 : r[1]), (NULL == r ? 0 : r[2]), eps);
 	if(NULL == S){
-		S4_TRACE("< Simulation_GetEpsilon (failed; S == NULL)\n");
+		RS_TRACE("< Simulation_GetEpsilon (failed; S == NULL)\n");
 		return -1;
 	}
 	if(NULL == r){
-		S4_TRACE("< Simulation_GetEpsilon (failed; r == NULL)\n");
+		RS_TRACE("< Simulation_GetEpsilon (failed; r == NULL)\n");
 		return -2;
 	}
 	if(NULL == S->solution){
 		int error = Simulation_InitSolution(S);
 		if(0 != error){
-			S4_TRACE("< Simulation_OutputLayerPatternRealization (failed; Simulation_InitSolution returned %d)\n", error);
+			RS_TRACE("< Simulation_OutputLayerPatternRealization (failed; Simulation_InitSolution returned %d)\n", error);
 			return error;
 		}
 	}
 
-	const S4_Layer *L = NULL;
+	const RS_Layer *L = NULL;
 	{
 		double z = 0;
 		int i;
@@ -3147,15 +3147,15 @@ int Simulation_GetEpsilon(S4_Simulation *S, const double r[3], double eps[2]){
 		L = &(S->layer[i]);
 	}
 	if(NULL == L){
-		S4_TRACE("< Simulation_GetEpsilon (failed; no layers found)\n");
+		RS_TRACE("< Simulation_GetEpsilon (failed; no layers found)\n");
 		return 14;
 	}
 
 	if(L->copy >= 0){ L = &S->layer[L->copy]; }
 
-	double *values = (double*)S4_malloc(sizeof(double)*2*(L->pattern.nshapes+1));
+	double *values = (double*)RS_malloc(sizeof(double)*2*(L->pattern.nshapes+1));
 	for(int i = -1; i < L->pattern.nshapes; ++i){
-		const S4_Material *M;
+		const RS_Material *M;
 		if(-1 == i){
 			M = &S->material[L->material];
 		}else{
@@ -3204,53 +3204,53 @@ int Simulation_GetEpsilon(S4_Simulation *S, const double r[3], double eps[2]){
 		eps[0] += ft[0]*ca - ft[1]*sa;
 		eps[1] += ft[0]*sa + ft[1]*ca;
 	}
-	S4_free(values);
+	RS_free(values);
 
-	S4_TRACE("< Simulation_GetEpsilon\n");
+	RS_TRACE("< Simulation_GetEpsilon\n");
 	return 0;
 }
 
-int Simulation_GetSMatrixDeterminant(S4_Simulation *S, double rmant[2], double *rbase, int *rexpo){
-	S4_TRACE("> Simulation_GetSMatrixDeterminant(S=%p, rmand=%p, rbase=%p, rexpo=%p)\n", S, rmant, rbase, rexpo);
+int Simulation_GetSMatrixDeterminant(RS_Simulation *S, double rmant[2], double *rbase, int *rexpo){
+	RS_TRACE("> Simulation_GetSMatrixDeterminant(S=%p, rmand=%p, rbase=%p, rexpo=%p)\n", S, rmant, rbase, rexpo);
 	if(NULL == S){ return -1; }
 	if(NULL == rmant){ return -2; }
 	if(NULL == rbase){ return -3; }
 	if(NULL == rexpo){ return -4; }
 
 	const size_t n4 = 4*S->n_G;
-	std::complex<double> *M = (std::complex<double>*)S4_malloc(sizeof(std::complex<double>)*n4*n4);
+	std::complex<double> *M = (std::complex<double>*)RS_malloc(sizeof(std::complex<double>)*n4*n4);
 	int ret = Simulation_GetSMatrix(S, 0, -1, M);
 	if(0 != ret){
-		S4_TRACE("< Simulation_GetSMatrixDeterminant (failed; Simulation_GetSMatrix returned %d)\n", ret);
+		RS_TRACE("< Simulation_GetSMatrixDeterminant (failed; Simulation_GetSMatrix returned %d)\n", ret);
 		return ret;
 	}
 	std::complex<double> mant;
 	double base;
 	int expo;
 	RNP::TLASupport::Determinant(n4, M, n4, &mant, &base, &expo, NULL);
-	S4_free(M);
+	RS_free(M);
 
 	rmant[0] = mant.real();
 	rmant[1] = mant.imag();
 	*rbase = base;
 	*rexpo = expo;
 
-	S4_TRACE("< Simulation_GetSMatrixDeterminant\n");
+	RS_TRACE("< Simulation_GetSMatrixDeterminant\n");
 	return 0;
 }
 
 
 // Returns a solution error code
 // Tint is a vector of time averaged stress tensor integral
-int Simulation_GetStressTensorIntegral(S4_Simulation *S, S4_Layer *layer, double offset, double Tint[6]){
-	S4_TRACE("> Simulation_GetStressTensorIntegral(S=%p, layer=%p, offset=%f, Tint=%p)\n", S, layer, offset, Tint);
+int Simulation_GetStressTensorIntegral(RS_Simulation *S, RS_Layer *layer, double offset, double Tint[6]){
+	RS_TRACE("> Simulation_GetStressTensorIntegral(S=%p, layer=%p, offset=%f, Tint=%p)\n", S, layer, offset, Tint);
 
 	int ret = 0;
 	if(NULL == S){ ret = -1; }
 	if(NULL == layer){ ret = -2; }
 	if(NULL == Tint){ ret = -4; }
 	if(0 != ret){
-		S4_TRACE("< Simulation_GetStressTensorIntegral (failed; ret = %d)\n", ret);
+		RS_TRACE("< Simulation_GetStressTensorIntegral (failed; ret = %d)\n", ret);
 		return ret;
 	}
 
@@ -3259,7 +3259,7 @@ int Simulation_GetStressTensorIntegral(S4_Simulation *S, S4_Layer *layer, double
 
 	ret = Simulation_GetLayerSolution(S, layer, &Lmodes, &Lsoln);
 	if(0 != ret){
-		S4_TRACE("< Simulation_GetStressTensorIntegral (failed; Simulation_GetLayerSolution returned %d)\n", ret);
+		RS_TRACE("< Simulation_GetStressTensorIntegral (failed; Simulation_GetLayerSolution returned %d)\n", ret);
 		return ret;
 	}
 
@@ -3267,9 +3267,9 @@ int Simulation_GetStressTensorIntegral(S4_Simulation *S, S4_Layer *layer, double
 	const int n2 = 2*n;
 	const int n4 = 2*n2;
 
-	std::complex<double> *ab = (std::complex<double> *)S4_malloc(sizeof(std::complex<double>) * (n4+8*n2));
+	std::complex<double> *ab = (std::complex<double> *)RS_malloc(sizeof(std::complex<double>) * (n4+8*n2));
 	if(NULL == ab){
-		S4_TRACE("< Simulation_GetStressTensorIntegral (failed; allocation failed)\n");
+		RS_TRACE("< Simulation_GetStressTensorIntegral (failed; allocation failed)\n");
 		return 1;
 	}
 	std::complex<double> *work = ab + n4;
@@ -3289,17 +3289,17 @@ int Simulation_GetStressTensorIntegral(S4_Simulation *S, S4_Layer *layer, double
 	Tint[4] = integral[1].imag();
 	Tint[5] = integral[2].imag();
 
-	S4_free(ab);
+	RS_free(ab);
 
-	S4_TRACE("< Simulation_GetStressTensorIntegral\n");
+	RS_TRACE("< Simulation_GetStressTensorIntegral\n");
 	return 0;
 }
 
 // Returns a solution error code
 // which can be 'U', 'E', 'H', 'e'
 // 'E' is epsilon*|E|^2, 'H' is |H|^2, 'e' is |E|^2, 'U' is 'E'+'H'
-int Simulation_GetLayerVolumeIntegral(S4_Simulation *S, S4_Layer *layer, char which, double integral[2]){
-	S4_TRACE("> Simulation_GetLayerVolumeIntegral(S=%p, layer=%p, which=%c, integral=%p)\n", S, layer, which, integral);
+int Simulation_GetLayerVolumeIntegral(RS_Simulation *S, RS_Layer *layer, char which, double integral[2]){
+	RS_TRACE("> Simulation_GetLayerVolumeIntegral(S=%p, layer=%p, which=%c, integral=%p)\n", S, layer, which, integral);
 
 	int ret = 0;
 	if(NULL == S){ ret = -1; }
@@ -3307,7 +3307,7 @@ int Simulation_GetLayerVolumeIntegral(S4_Simulation *S, S4_Layer *layer, char wh
 	if(which != 'U' && which != 'E' && which != 'H' && which != 'e'){ ret = -3; }
 	if(NULL == integral){ ret = -4; }
 	if(0 != ret){
-		S4_TRACE("< Simulation_GetLayerVolumeIntegral (failed; ret = %d)\n", ret);
+		RS_TRACE("< Simulation_GetLayerVolumeIntegral (failed; ret = %d)\n", ret);
 		return ret;
 	}
 
@@ -3316,7 +3316,7 @@ int Simulation_GetLayerVolumeIntegral(S4_Simulation *S, S4_Layer *layer, char wh
 
 	ret = Simulation_GetLayerSolution(S, layer, &Lmodes, &Lsoln);
 	if(0 != ret){
-		S4_TRACE("< Simulation_GetLayerVolumeIntegral (failed; Simulation_GetLayerSolution returned %d)\n", ret);
+		RS_TRACE("< Simulation_GetLayerVolumeIntegral (failed; Simulation_GetLayerSolution returned %d)\n", ret);
 		return ret;
 	}
 
@@ -3324,9 +3324,9 @@ int Simulation_GetLayerVolumeIntegral(S4_Simulation *S, S4_Layer *layer, char wh
 	const int n2 = 2*n;
 	const int n4 = 2*n2;
 
-	std::complex<double> *work = (std::complex<double> *)S4_malloc(sizeof(std::complex<double>) * (n4*n4));
+	std::complex<double> *work = (std::complex<double> *)RS_malloc(sizeof(std::complex<double>) * (n4*n4));
 	if(NULL == work){
-		S4_TRACE("< Simulation_GetLayerVolumeIntegral (failed; allocation failed)\n");
+		RS_TRACE("< Simulation_GetLayerVolumeIntegral (failed; allocation failed)\n");
 		return 1;
 	}
 
@@ -3336,18 +3336,18 @@ int Simulation_GetLayerVolumeIntegral(S4_Simulation *S, S4_Layer *layer, char wh
 		std::complex<double>(S->omega[0],S->omega[1]),
 		layer->thickness, Lmodes->q, Lmodes->kp, Lmodes->phi, Lmodes->Epsilon_inv, Lmodes->Epsilon2, Lmodes->epstype, Lsoln, &zintegral, work);
 
-	S4_free(work);
+	RS_free(work);
 
 	integral[0] = zintegral.real();
 	integral[1] = zintegral.imag();
 
-	S4_TRACE("< Simulation_GetLayerVolumeIntegral\n");
+	RS_TRACE("< Simulation_GetLayerVolumeIntegral\n");
 	return 0;
 }
 
 // Returns a solution error code
-int Simulation_GetLayerZIntegral(S4_Simulation *S, S4_Layer *layer, const double r[2], double integral[6]){
-	S4_TRACE("> Simulation_GetLayerZIntegral(S=%p, layer=%p, r=%g,%g, integral=%p)\n", S, layer, r[0], r[1], integral);
+int Simulation_GetLayerZIntegral(RS_Simulation *S, RS_Layer *layer, const double r[2], double integral[6]){
+	RS_TRACE("> Simulation_GetLayerZIntegral(S=%p, layer=%p, r=%g,%g, integral=%p)\n", S, layer, r[0], r[1], integral);
 
 	int ret = 0;
 	if(NULL == S){ ret = -1; }
@@ -3355,7 +3355,7 @@ int Simulation_GetLayerZIntegral(S4_Simulation *S, S4_Layer *layer, const double
 	if(NULL == r){ ret = -3; }
 	if(NULL == integral){ ret = -4; }
 	if(0 != ret){
-		S4_TRACE("< Simulation_GetLayerZIntegral (failed; ret = %d)\n", ret);
+		RS_TRACE("< Simulation_GetLayerZIntegral (failed; ret = %d)\n", ret);
 		return ret;
 	}
 
@@ -3364,7 +3364,7 @@ int Simulation_GetLayerZIntegral(S4_Simulation *S, S4_Layer *layer, const double
 
 	ret = Simulation_GetLayerSolution(S, layer, &Lmodes, &Lsoln);
 	if(0 != ret){
-		S4_TRACE("< Simulation_GetLayerZIntegral (failed; Simulation_GetLayerSolution returned %d)\n", ret);
+		RS_TRACE("< Simulation_GetLayerZIntegral (failed; Simulation_GetLayerSolution returned %d)\n", ret);
 		return ret;
 	}
 
@@ -3372,9 +3372,9 @@ int Simulation_GetLayerZIntegral(S4_Simulation *S, S4_Layer *layer, const double
 	const int n2 = 2*n;
 	const int n4 = 2*n2;
 
-	std::complex<double> *work = (std::complex<double> *)S4_malloc(sizeof(std::complex<double>) * (12*n4));
+	std::complex<double> *work = (std::complex<double> *)RS_malloc(sizeof(std::complex<double>) * (12*n4));
 	if(NULL == work){
-		S4_TRACE("< Simulation_GetLayerZIntegral (failed; allocation failed)\n");
+		RS_TRACE("< Simulation_GetLayerZIntegral (failed; allocation failed)\n");
 		return 1;
 	}
 
@@ -3383,15 +3383,15 @@ int Simulation_GetLayerZIntegral(S4_Simulation *S, S4_Layer *layer, const double
 		std::complex<double>(S->omega[0],S->omega[1]),
 		layer->thickness, r, Lmodes->q, Lmodes->kp, Lmodes->phi, Lmodes->Epsilon_inv, Lmodes->Epsilon2, Lmodes->epstype, Lsoln, integral, work);
 
-	S4_free(work);
+	RS_free(work);
 
 
-	S4_TRACE("< Simulation_GetLayerZIntegral\n");
+	RS_TRACE("< Simulation_GetLayerZIntegral\n");
 	return 0;
 }
 
-int Simulation_MakeExcitationPlanewave(S4_Simulation *S, const double angle[2], const double pol_s[2], const double pol_p[2], size_t order){
-	S4_TRACE("> Simulation_MakeExcitationPlanewave(S=%p, angle=%p (%f,%f), pol_s=%p (%f,%f), pol_p=%p (%f,%f))\n", S,
+int Simulation_MakeExcitationPlanewave(RS_Simulation *S, const double angle[2], const double pol_s[2], const double pol_p[2], size_t order){
+	RS_TRACE("> Simulation_MakeExcitationPlanewave(S=%p, angle=%p (%f,%f), pol_s=%p (%f,%f), pol_p=%p (%f,%f))\n", S,
 		angle, (NULL != angle) ? angle[0] : 0, (NULL != angle) ? angle[1] : 0,
 		pol_s, (NULL != pol_s) ? pol_s[0] : 0, (NULL != pol_s) ? pol_s[1] : 0,
 		pol_p, (NULL != pol_p) ? pol_p[0] : 0, (NULL != pol_p) ? pol_p[1] : 0);
@@ -3401,21 +3401,21 @@ int Simulation_MakeExcitationPlanewave(S4_Simulation *S, const double angle[2], 
 	if(NULL == pol_s){ ret = -3; }
 	if(NULL == pol_p){ ret = -4; }
 	if(0 != ret){
-		S4_TRACE("< Simulation_MakeExcitationPlanewave (failed; ret = %d)\n", ret);
+		RS_TRACE("< Simulation_MakeExcitationPlanewave (failed; ret = %d)\n", ret);
 		return ret;
 	}
 
 	if(NULL == S->layer){
-		S4_TRACE("< Simulation_MakeExcitationPlanewave (failed; no layers)\n");
+		RS_TRACE("< Simulation_MakeExcitationPlanewave (failed; no layers)\n");
 		return 14;
 	}
 
 	Simulation_DestroySolution(S);
 	S->exc.type = 0;
 
-	const S4_Material *M = &S->material[S->layer[0].material];
+	const RS_Material *M = &S->material[S->layer[0].material];
 	if(NULL == M){
-		S4_TRACE("< Simulation_MakeExcitationPlanewave (failed; material %d not defined)\n", S->layer[0].material);
+		RS_TRACE("< Simulation_MakeExcitationPlanewave (failed; material %d not defined)\n", S->layer[0].material);
 		return 15;
 	}
 	std::complex<double> layer_eps;
@@ -3465,12 +3465,12 @@ int Simulation_MakeExcitationPlanewave(S4_Simulation *S, const double angle[2], 
 	std::cout << "hy: " << S->exc.sub.planewave.hy[0] << "\t" << S->exc.sub.planewave.hy[1] << std::endl;
 	//*/
 
-	S4_TRACE("< Simulation_MakeExcitationPlanewave\n");
+	RS_TRACE("< Simulation_MakeExcitationPlanewave\n");
 	return 0;
 }
 
-int S4_Simulation_ExcitationDipole(S4_Simulation *S, const double k[2], const char *layer, const double pos[2], const double moment[6]){
-	S4_TRACE("> Simulation_MakeExcitationDipole(S=%p, k=%p (%f,%f), moment=%p (%f,%f,%f,%f,%f,%f))\n", S,
+int RS_Simulation_ExcitationDipole(RS_Simulation *S, const double k[2], const char *layer, const double pos[2], const double moment[6]){
+	RS_TRACE("> Simulation_MakeExcitationDipole(S=%p, k=%p (%f,%f), moment=%p (%f,%f,%f,%f,%f,%f))\n", S,
 		pos, (NULL != pos) ? pos[0] : 0, (NULL != pos) ? pos[1] : 0,
 		moment, (NULL != moment) ? moment[0] : 0, (NULL != moment) ? moment[1] : 0, (NULL != moment) ? moment[2] : 0,
 		(NULL != moment) ? moment[3] : 0, (NULL != moment) ? moment[4] : 0, (NULL != moment) ? moment[5] : 0);
@@ -3479,12 +3479,12 @@ int S4_Simulation_ExcitationDipole(S4_Simulation *S, const double k[2], const ch
 	if(NULL == pos){ ret = -2; }
 	if(NULL == moment){ ret = -3; }
 	if(0 != ret){
-		S4_TRACE("< Simulation_MakeExcitationDipole (failed; ret = %d)\n", ret);
+		RS_TRACE("< Simulation_MakeExcitationDipole (failed; ret = %d)\n", ret);
 		return ret;
 	}
 
 	if(NULL == S->layer){
-		S4_TRACE("< Simulation_MakeExcitationDipole (failed; no layers)\n");
+		RS_TRACE("< Simulation_MakeExcitationDipole (failed; no layers)\n");
 		return 14;
 	}
 
@@ -3500,12 +3500,12 @@ int S4_Simulation_ExcitationDipole(S4_Simulation *S, const double k[2], const ch
 	}
 	S->exc.layer = Simulation_GetLayerByName(S, layer, NULL);
 
-	S4_TRACE("< Simulation_MakeExcitationDipole\n");
+	RS_TRACE("< Simulation_MakeExcitationDipole\n");
 	return 0;
 }
 
-int S4_Simulation_ExcitationExterior(S4_Simulation *S, int n, const int *exg, const double *ex){
-	S4_TRACE("> Simulation_MakeExcitationExterior(S=%p, n=%d, exg=%p, ex=%p)\n", S,
+int RS_Simulation_ExcitationExterior(RS_Simulation *S, int n, const int *exg, const double *ex){
+	RS_TRACE("> Simulation_MakeExcitationExterior(S=%p, n=%d, exg=%p, ex=%p)\n", S,
 		n, exg, ex);
 	int ret = 0;
 	if(NULL == S){ ret = -1; }
@@ -3513,7 +3513,7 @@ int S4_Simulation_ExcitationExterior(S4_Simulation *S, int n, const int *exg, co
 	if(NULL == exg){ ret = -3; }
 	if(NULL == ex){ ret = -4; }
 	if(0 != ret){
-		S4_TRACE("< Simulation_MakeExcitationExterior (failed; ret = %d)\n", ret);
+		RS_TRACE("< Simulation_MakeExcitationExterior (failed; ret = %d)\n", ret);
 		return ret;
 	}
 
@@ -3528,23 +3528,23 @@ int S4_Simulation_ExcitationExterior(S4_Simulation *S, int n, const int *exg, co
 	ext->coeff = (double*)malloc(sizeof(double) * 2*n);
 	memcpy(ext->coeff, ex, sizeof(double) * 2*n);
 
-	S4_TRACE("< Simulation_MakeExcitationExterior\n");
+	RS_TRACE("< Simulation_MakeExcitationExterior\n");
 	return 0;
 }
 
-void Simulation_InvalidateFieldCache(S4_Simulation *S){
-	S4_TRACE("> Simulation_InvalidateFieldCache(S=%p) [omega=%f]\n", S, S->omega[0]);
+void Simulation_InvalidateFieldCache(RS_Simulation *S){
+	RS_TRACE("> Simulation_InvalidateFieldCache(S=%p) [omega=%f]\n", S, S->omega[0]);
 	while(NULL != S->field_cache){
 		FieldCache *t = S->field_cache;
 		S->field_cache = S->field_cache->next;
-		// The P pointer is just t+1, so don't S4_free it!
-		S4_free(t);
+		// The P pointer is just t+1, so don't RS_free it!
+		RS_free(t);
 	}
 	S->field_cache = NULL;
-	S4_TRACE("< Simulation_InvalidateFieldCache [omega=%f]\n", S->omega[0]);
+	RS_TRACE("< Simulation_InvalidateFieldCache [omega=%f]\n", S->omega[0]);
 }
-std::complex<double>* Simulation_GetCachedField(const S4_Simulation *S, const S4_Layer *layer){
-	S4_TRACE("> Simulation_GetCachedField(S=%p, layer=%p) [omega=%f]\n", S, layer, S->omega[0]);
+std::complex<double>* Simulation_GetCachedField(const RS_Simulation *S, const RS_Layer *layer){
+	RS_TRACE("> Simulation_GetCachedField(S=%p, layer=%p) [omega=%f]\n", S, layer, S->omega[0]);
 	std::complex<double> *P = NULL;
 	FieldCache *f = S->field_cache;
 	while(NULL != f){
@@ -3554,23 +3554,23 @@ std::complex<double>* Simulation_GetCachedField(const S4_Simulation *S, const S4
 		}
 		f = f->next;
 	}
-	S4_TRACE("< Simulation_GetCachedField returning P = %p [omega=%f]\n", P, S->omega[0]);
+	RS_TRACE("< Simulation_GetCachedField returning P = %p [omega=%f]\n", P, S->omega[0]);
 	return P;
 }
-void Simulation_AddFieldToCache(S4_Simulation *S, const S4_Layer *layer, size_t n, const std::complex<double> *P, size_t Plen){
-	S4_TRACE("> Simulation_AddFieldToCache(S=%p, layer=%p, n=%d, P=%p) [omega=%f]\n", S, layer, (int)n, P, S->omega[0]);
-	FieldCache *f = (FieldCache*)S4_malloc(sizeof(FieldCache)+sizeof(std::complex<double>)*Plen);
+void Simulation_AddFieldToCache(RS_Simulation *S, const RS_Layer *layer, size_t n, const std::complex<double> *P, size_t Plen){
+	RS_TRACE("> Simulation_AddFieldToCache(S=%p, layer=%p, n=%d, P=%p) [omega=%f]\n", S, layer, (int)n, P, S->omega[0]);
+	FieldCache *f = (FieldCache*)RS_malloc(sizeof(FieldCache)+sizeof(std::complex<double>)*Plen);
 	f->P = (std::complex<double>*)(f+1);
 	memcpy(f->P, P, sizeof(std::complex<double>)*Plen);
 	f->layer = layer;
 	f->n = n;
 	f->next = S->field_cache;
 	S->field_cache = f;
-	S4_TRACE("< Simulation_AddFieldToCache [omega=%f]\n", S->omega[0]);
+	RS_TRACE("< Simulation_AddFieldToCache [omega=%f]\n", S->omega[0]);
 }
 
-void Simulation_SetExcitationType(S4_Simulation *S, int type){
-	S4_TRACE("> Simulation_SetExcitationType(S=%p, type=%d\n", S, type);
+void Simulation_SetExcitationType(RS_Simulation *S, int type){
+	RS_TRACE("> Simulation_SetExcitationType(S=%p, type=%d\n", S, type);
 	if(1 == S->exc.type){
 		if(NULL != S->exc.layer){
 			free(S->exc.layer);
@@ -3580,10 +3580,10 @@ void Simulation_SetExcitationType(S4_Simulation *S, int type){
 		if(NULL != S->exc.sub.exterior.coeff){ free(S->exc.sub.exterior.coeff); }
 	}
 	S->exc.type = type;
-	S4_TRACE("< Simulation_SetExcitationType\n");
+	RS_TRACE("< Simulation_SetExcitationType\n");
 }
-void Simulation_CopyExcitation(const S4_Simulation *from, S4_Simulation *to){
-	S4_TRACE("> Simulation_CopyExcitation(from=%p, to=%p\n", from, to);
+void Simulation_CopyExcitation(const RS_Simulation *from, RS_Simulation *to){
+	RS_TRACE("> Simulation_CopyExcitation(from=%p, to=%p\n", from, to);
 	memcpy(&(to->exc), &(from->exc), sizeof(Excitation));
 	if(1 == to->exc.type){
 		to->exc.layer = to->layer + (from->exc.layer - from->layer);
@@ -3594,25 +3594,25 @@ void Simulation_CopyExcitation(const S4_Simulation *from, S4_Simulation *to){
 		to->exc.sub.exterior.coeff = (double*)malloc(sizeof(double) * 2*n);
 		memcpy(to->exc.sub.exterior.coeff, from->exc.sub.exterior.coeff, sizeof(double) * 2*n);
 	}
-	S4_TRACE("< Simulation_CopyExcitation\n");
+	RS_TRACE("< Simulation_CopyExcitation\n");
 }
 
-int Simulation_GetSMatrix(S4_Simulation *S, int from, int to, std::complex<double> *M){
-	S4_TRACE("> Simulation_GetSMatrix(S=%p, from=%d, to=%d)\n", S, from, to);
+int Simulation_GetSMatrix(RS_Simulation *S, int from, int to, std::complex<double> *M){
+	RS_TRACE("> Simulation_GetSMatrix(S=%p, from=%d, to=%d)\n", S, from, to);
 
 	if(-1 != to && to < from){ return -3; }
 
 	if(NULL == S->solution){
 		int error = Simulation_InitSolution(S);
 		if(0 != error){
-			S4_TRACE("< Simulation_GetSMatrix (failed; Simulation_InitSolution returned %d)\n", error);
+			RS_TRACE("< Simulation_GetSMatrix (failed; Simulation_InitSolution returned %d)\n", error);
 			return error;
 		}
 	}
 
 	// compute all modes
 	for(int i = 0; i < S->n_layers; ++i){
-		S4_Layer *SL = &(S->layer[i]);
+		RS_Layer *SL = &(S->layer[i]);
 		if(from <= i && (-1 == to || i <= to)){
 			if(NULL == SL->modes){
 				Simulation_ComputeLayerModes(S, SL, &SL->modes);
@@ -3621,15 +3621,15 @@ int Simulation_GetSMatrix(S4_Simulation *S, int from, int to, std::complex<doubl
 	}
 
 	// Make arrays of q, kp, and phi
-	double *lthick = (double*)S4_malloc(sizeof(double)*S->n_layers);
-	int *lepstype = (int*)S4_malloc(sizeof(int)*S->n_layers);
-	const std::complex<double> **lq   = (const std::complex<double> **)S4_malloc(sizeof(const std::complex<double> *)*S->n_layers*4);
+	double *lthick = (double*)RS_malloc(sizeof(double)*S->n_layers);
+	int *lepstype = (int*)RS_malloc(sizeof(int)*S->n_layers);
+	const std::complex<double> **lq   = (const std::complex<double> **)RS_malloc(sizeof(const std::complex<double> *)*S->n_layers*4);
 	const std::complex<double> **lepsinv  = lq  + S->n_layers;
 	const std::complex<double> **lkp  = lepsinv  + S->n_layers;
 	const std::complex<double> **lphi = lkp + S->n_layers;
 
 	for(int i = 0; i < S->n_layers; ++i){
-		S4_Layer *SL = &(S->layer[i]);
+		RS_Layer *SL = &(S->layer[i]);
 		if(from <= i && (-1 == to || i <= to)){
 			lthick[i] = SL->thickness;
 			lq  [i] = SL->modes->q;
@@ -3642,11 +3642,11 @@ int Simulation_GetSMatrix(S4_Simulation *S, int from, int to, std::complex<doubl
 
 	GetSMatrix(S->n_layers, S->n_G, S->kx, S->ky, std::complex<double>(S->omega[0], S->omega[1]), lthick, lq, lepsinv, lepstype, lkp, lphi, M);
 
-	S4_free(lq);
-	S4_free(lepstype);
-	S4_free(lthick);
+	RS_free(lq);
+	RS_free(lepstype);
+	RS_free(lthick);
 
-	S4_TRACE("< Simulation_GetSMatrix\n");
+	RS_TRACE("< Simulation_GetSMatrix\n");
 	return 0;
 }
 
@@ -3654,11 +3654,11 @@ int Simulation_GetSMatrix(S4_Simulation *S, int from, int to, std::complex<doubl
 
 
 
-int S4_Simulation_ExcitationPlanewave(
-	S4_Simulation *S, const S4_real *kdir, const S4_real *udir,
-	const S4_real *amp_u, const S4_real *amp_v
+int RS_Simulation_ExcitationPlanewave(
+	RS_Simulation *S, const RS_real *kdir, const RS_real *udir,
+	const RS_real *amp_u, const RS_real *amp_v
 ){
-	S4_TRACE("> S4_Simulation_ExcitationPlanewave(S=%p, kdir=(%f,%f,%f), udir=(%f,%f,%f), amp_u=(%f,%f), amp_v=(%f,%f))\n", S,
+	RS_TRACE("> RS_Simulation_ExcitationPlanewave(S=%p, kdir=(%f,%f,%f), udir=(%f,%f,%f), amp_u=(%f,%f), amp_v=(%f,%f))\n", S,
 		kdir[0], kdir[1], kdir[2],
 		udir[0], udir[1], udir[2],
 		amp_u[0], amp_u[1],
@@ -3671,18 +3671,18 @@ int S4_Simulation_ExcitationPlanewave(
 	if(NULL == amp_u){ ret = -4; }
 	if(NULL == amp_v){ ret = -5; }
 	if(0 != ret){
-		S4_TRACE("< S4_Simulation_ExcitationPlanewave (failed; ret = %d)\n", ret);
+		RS_TRACE("< RS_Simulation_ExcitationPlanewave (failed; ret = %d)\n", ret);
 		return ret;
 	}
 
 	if(S->n_layers <= 0){
-		S4_TRACE("< S4_Simulation_ExcitationPlanewave (failed; no layers)\n");
+		RS_TRACE("< RS_Simulation_ExcitationPlanewave (failed; no layers)\n");
 		return 14;
 	}
 	Simulation_DestroySolution(S);
 	S->exc.type = 0;
 
-	const S4_Material *M;
+	const RS_Material *M;
 	if(kdir[2] < 0){
 		M = &S->material[S->layer[S->n_layers-1].material];
 	}else{
@@ -3690,7 +3690,7 @@ int S4_Simulation_ExcitationPlanewave(
 	}
 
 	if(NULL == M){
-		S4_TRACE("< S4_Simulation_ExcitationPlanewave (failed; material %d not defined)\n", S->layer[0].material);
+		RS_TRACE("< RS_Simulation_ExcitationPlanewave (failed; material %d not defined)\n", S->layer[0].material);
 		return 15;
 	}
 	std::complex<double> layer_eps;
@@ -3701,12 +3701,12 @@ int S4_Simulation_ExcitationPlanewave(
 	}
 	double root_eps = std::sqrt(layer_eps).real();
 
-	S4_real il = 1./sqrt(kdir[0]*kdir[0] + kdir[1]*kdir[1] + kdir[2]*kdir[2]);
-	const S4_real kn[3] = {
+	RS_real il = 1./sqrt(kdir[0]*kdir[0] + kdir[1]*kdir[1] + kdir[2]*kdir[2]);
+	const RS_real kn[3] = {
 		il*kdir[0], il*kdir[1], il*kdir[2]
 	};
-	S4_real uk = kn[0]*udir[0] + kn[1]*udir[1] + kn[2]*udir[2];
-	S4_real un[3] = {
+	RS_real uk = kn[0]*udir[0] + kn[1]*udir[1] + kn[2]*udir[2];
+	RS_real un[3] = {
 		udir[0] - uk*kdir[0],
 		udir[1] - uk*kdir[1],
 		udir[2] - uk*kdir[2]
@@ -3715,7 +3715,7 @@ int S4_Simulation_ExcitationPlanewave(
 	un[0] *= il;
 	un[1] *= il;
 	un[2] *= il;
-	const S4_real vn[3] = {
+	const RS_real vn[3] = {
 		kn[1]*un[2]-kn[2]*un[1],
 		kn[2]*un[0]-kn[0]*un[2],
 		kn[0]*un[1]-kn[1]*un[0]
@@ -3723,10 +3723,10 @@ int S4_Simulation_ExcitationPlanewave(
 	// E field is amp_u * u + amp_v * v
 	// H field is amp_u * v - amp_v * u
 
-	S4_real k_new[2] = { root_eps * kn[0], root_eps * kn[1] };
+	RS_real k_new[2] = { root_eps * kn[0], root_eps * kn[1] };
 
 	if(k_new[0] != S->k[0] || k_new[1] != S->k[1]){
-		S4_Simulation_DestroyLayerModes(S, -1);
+		RS_Simulation_DestroyLayerModes(S, -1);
 		S->k[0] = k_new[0];
 		S->k[1] = k_new[1];
 	}
@@ -3740,27 +3740,27 @@ int S4_Simulation_ExcitationPlanewave(
 		S->exc.sub.planewave.backwards = 1;
 	}
 
-	S4_TRACE("< S4_Simulation_ExcitationPlanewave\n");
+	RS_TRACE("< RS_Simulation_ExcitationPlanewave\n");
 	return 0;
 }
 
-int S4_Simulation_GetFieldPlane(S4_Simulation *S, const int nxy[2], const S4_real *xyz0, S4_real *E, S4_real *H){
-	S4_TRACE("> S4_Simulation_GetFieldPlane(S=%p, nxy=%p (%d,%d), r0=(%f,%f,%f), E=%p, H=%p)\n",
+int RS_Simulation_GetFieldPlane(RS_Simulation *S, const int nxy[2], const RS_real *xyz0, RS_real *E, RS_real *H){
+	RS_TRACE("> RS_Simulation_GetFieldPlane(S=%p, nxy=%p (%d,%d), r0=(%f,%f,%f), E=%p, H=%p)\n",
 		S, nxy, (NULL == nxy ? 0 : nxy[0]), (NULL == nxy ? 0 : nxy[1]), xyz0[0], xyz0[1], xyz0[2], E, H);
 	if(NULL == S){
-		S4_TRACE("< S4_Simulation_GetFieldPlane (failed; S == NULL)\n");
+		RS_TRACE("< RS_Simulation_GetFieldPlane (failed; S == NULL)\n");
 		return -1;
 	}
 	if(NULL == nxy){
-		S4_TRACE("< S4_Simulation_GetFieldPlane (failed; nxy == NULL)\n");
+		RS_TRACE("< RS_Simulation_GetFieldPlane (failed; nxy == NULL)\n");
 		return -2;
 	}
 	if(NULL == xyz0){
-		S4_TRACE("< S4_Simulation_GetFieldPlane (failed; xyz0 == NULL)\n");
+		RS_TRACE("< RS_Simulation_GetFieldPlane (failed; xyz0 == NULL)\n");
 		return -3;
 	}
 	if(NULL == E && NULL == H){
-		S4_TRACE("< S4_Simulation_GetFieldPlane (early exit; E and H both NULL)\n");
+		RS_TRACE("< RS_Simulation_GetFieldPlane (early exit; E and H both NULL)\n");
 		return 0;
 	}
 	
@@ -3780,7 +3780,7 @@ int S4_Simulation_GetFieldPlane(S4_Simulation *S, const int nxy[2], const S4_rea
 	const size_t n2 = 2*S->n_G;
 	const size_t n4 = 2*n2;
 
-	S4_Layer *L = NULL;
+	RS_Layer *L = NULL;
 	double dz = xyz0[2];
 	{
 		double z = 0;
@@ -3793,7 +3793,7 @@ int S4_Simulation_GetFieldPlane(S4_Simulation *S, const int nxy[2], const S4_rea
 		L = &(S->layer[i]);
 	}
 	if(NULL == L){
-		S4_TRACE("< S4_Simulation_GetFieldPlane (failed; no layers found)\n");
+		RS_TRACE("< RS_Simulation_GetFieldPlane (failed; no layers found)\n");
 		return 14;
 	}
 //fprintf(stderr, "(%f,%f,%f) in %s: dz = %f\n", r[0], r[1], r[2], L->name, dz);
@@ -3802,13 +3802,13 @@ int S4_Simulation_GetFieldPlane(S4_Simulation *S, const int nxy[2], const S4_rea
 	std::complex<double> *Lsoln;
 	int ret = Simulation_GetLayerSolution(S, L, &Lmodes, &Lsoln);
 	if(0 != ret){
-		S4_TRACE("< S4_Simulation_GetFieldPlane (failed; Simulation_GetLayerSolution returned %d)\n", ret);
+		RS_TRACE("< RS_Simulation_GetFieldPlane (failed; Simulation_GetLayerSolution returned %d)\n", ret);
 		return ret;
 	}
 
-	std::complex<double> *ab = (std::complex<double>*)S4_malloc(sizeof(std::complex<double>) * (n4+8*n2));
+	std::complex<double> *ab = (std::complex<double>*)RS_malloc(sizeof(std::complex<double>) * (n4+8*n2));
 	if(NULL == ab){
-		S4_TRACE("< S4_Simulation_GetFieldPlane (failed; allocation failed)\n");
+		RS_TRACE("< RS_Simulation_GetFieldPlane (failed; allocation failed)\n");
 		return 1;
 	}
 	std::complex<double> *work = ab + n4;
@@ -3825,8 +3825,8 @@ int S4_Simulation_GetFieldPlane(S4_Simulation *S, const int nxy[2], const S4_rea
 		reinterpret_cast<std::complex<double>*>(E),
 		reinterpret_cast<std::complex<double>*>(H)
 	);
-	S4_free(ab);
+	RS_free(ab);
 
-	S4_TRACE("< S4_Simulation_GetFieldPlane\n");
+	RS_TRACE("< RS_Simulation_GetFieldPlane\n");
 	return 0;
 }

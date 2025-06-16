@@ -1,7 +1,7 @@
 #include <config.h>
 
 #include <cmath>
-#include <S4.h>
+#include <RS.h>
 #include "RNP/TBLAS.h"
 #include "RNP/LinearSolve.h"
 #include "fmm.h"
@@ -10,12 +10,12 @@
 #include "fft_iface.h"
 #include <cstring>
 
-int FMMGetEpsilon_PolBasisNV(const S4_Simulation *S, const S4_Layer *L, const int n, std::complex<double> *Epsilon2, std::complex<double> *Epsilon_inv){
+int FMMGetEpsilon_PolBasisNV(const RS_Simulation *S, const RS_Layer *L, const int n, std::complex<double> *Epsilon2, std::complex<double> *Epsilon_inv){
 	double mp1 = 0;
 	int pwr = S->options.lanczos_smoothing_power;
 	if(S->options.use_Lanczos_smoothing){
 		mp1 = GetLanczosSmoothingOrder(S);
-		S4_TRACE("I   Lanczos smoothing order = %f\n", mp1);
+		RS_TRACE("I   Lanczos smoothing order = %f\n", mp1);
 		mp1 *= S->options.lanczos_smoothing_width;
 	}
 
@@ -26,13 +26,13 @@ int FMMGetEpsilon_PolBasisNV(const S4_Simulation *S, const S4_Layer *L, const in
 	const double unit_cell_size = Simulation_GetUnitCellSize(S);
 	const int *G = S->G;
 	const int ndim = (0 == S->Lr[2] && 0 == S->Lr[3]) ? 1 : 2;
-	double *ivalues = (double*)S4_malloc(sizeof(double)*(2+10)*(L->pattern.nshapes+1));
+	double *ivalues = (double*)RS_malloc(sizeof(double)*(2+10)*(L->pattern.nshapes+1));
 	double *values = ivalues + 2*(L->pattern.nshapes+1);
 
 	// Get all the dielectric tensors
 	//bool have_tensor = false;
 	for(int i = -1; i < L->pattern.nshapes; ++i){
-		const S4_Material *M;
+		const RS_Material *M;
 		if(-1 == i){
 			M = &S->material[L->material];
 		}else{
@@ -78,7 +78,7 @@ int FMMGetEpsilon_PolBasisNV(const S4_Simulation *S, const S4_Layer *L, const in
 		}
 		const int ng2 = ngrid[0]*ngrid[1];
 
-		work = (std::complex<double>*)S4_malloc(sizeof(std::complex<double>)*(6*nn + 4*ng2));
+		work = (std::complex<double>*)RS_malloc(sizeof(std::complex<double>)*(6*nn + 4*ng2));
 		mDelta = work;
 		Eta = mDelta + nn;
 		P = Eta + nn;
@@ -90,7 +90,7 @@ int FMMGetEpsilon_PolBasisNV(const S4_Simulation *S, const S4_Layer *L, const in
 		const double ing2 = 1./(double)ng2;
 		int ii[2];
 
-		double *vfield = (double*)S4_malloc(sizeof(double)*2*ng2);
+		double *vfield = (double*)RS_malloc(sizeof(double)*2*ng2);
 		if(0 == S->Lr[2] && 0 == S->Lr[3]){ // 1D, generate the trivial field
 			double nv[2] = {-S->Lr[1], S->Lr[0]};
 			double nva = hypot(nv[0],nv[1]);
@@ -103,7 +103,7 @@ int FMMGetEpsilon_PolBasisNV(const S4_Simulation *S, const S4_Layer *L, const in
 			}
 		}else{
 			int error = 0;
-			S4_VERB(1, "Generating polarization vector field of size %d x %d\n", ngrid[0], ngrid[1]);
+			RS_VERB(1, "Generating polarization vector field of size %d x %d\n", ngrid[0], ngrid[1]);
 			error = Pattern_GenerateFlowField(&L->pattern, 0, S->Lr, ngrid[0], ngrid[1], vfield);
 
 			// Normalize the field
@@ -123,10 +123,10 @@ int FMMGetEpsilon_PolBasisNV(const S4_Simulation *S, const S4_Layer *L, const in
 			}
 
 			if(0 != error){
-				S4_TRACE("< Simulation_ComputeLayerBands (failed; Pattern_GenerateFlowField returned %d) [omega=%f]\n", error, S->omega[0]);
-				if(NULL != vfield){ S4_free(vfield); }
-				if(NULL != work){ S4_free(work); }
-				if(NULL != ivalues){ S4_free(ivalues); }
+				RS_TRACE("< Simulation_ComputeLayerBands (failed; Pattern_GenerateFlowField returned %d) [omega=%f]\n", error, S->omega[0]);
+				if(NULL != vfield){ RS_free(vfield); }
+				if(NULL != work){ RS_free(work); }
+				if(NULL != ivalues){ RS_free(ivalues); }
 				return error;
 			}
 		}
@@ -187,13 +187,13 @@ int FMMGetEpsilon_PolBasisNV(const S4_Simulation *S, const S4_Layer *L, const in
 		}
 		fft_plan_destroy(plan);
 		//free(fftcfg);
-		if(NULL != vfield){ S4_free(vfield); }
+		if(NULL != vfield){ RS_free(vfield); }
 		// Add to cache
-		Simulation_AddFieldToCache((S4_Simulation*)S, L, S->n_G, P, 4*nn);
+		Simulation_AddFieldToCache((RS_Simulation*)S, L, S->n_G, P, 4*nn);
 	}else{
 		// P contains the cached version
 		// We still need temporary space to compute -Delta
-		work = (std::complex<double>*)S4_malloc(sizeof(std::complex<double>)*2*nn);
+		work = (std::complex<double>*)RS_malloc(sizeof(std::complex<double>)*2*nn);
 		mDelta = work;
 		Eta = mDelta + nn;
 	}
@@ -229,9 +229,9 @@ int FMMGetEpsilon_PolBasisNV(const S4_Simulation *S, const S4_Layer *L, const in
 		int Ecol = (w&2 ? n : 0);
 		RNP::TBLAS::MultMM<'N','N'>(n,n,n, std::complex<double>(1.),mDelta,n, &P[Erow+Ecol*n2],n2, std::complex<double>(1.),&Epsilon2[Erow+Ecol*n2],n2);
 	}
-	if(NULL != work){ S4_free(work); }
+	if(NULL != work){ RS_free(work); }
 
-	S4_free(ivalues);
+	RS_free(ivalues);
 
 	return 0;
 }

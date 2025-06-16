@@ -1,7 +1,7 @@
 #include <config.h>
 
 #include <cmath>
-#include <S4.h>
+#include <RS.h>
 #include "RNP/TBLAS.h"
 #include "RNP/LinearSolve.h"
 #include "fmm.h"
@@ -11,7 +11,7 @@
 // #include <tools/kiss_fftnd.h>
 #include "fft_iface.h"
 
-int FMMGetEpsilon_FFT(const S4_Simulation *S, const S4_Layer *L, const int n, std::complex<double> *Epsilon2, std::complex<double> *Epsilon_inv){
+int FMMGetEpsilon_FFT(const RS_Simulation *S, const RS_Layer *L, const int n, std::complex<double> *Epsilon2, std::complex<double> *Epsilon_inv){
 	const int n2 = 2*n;
 	const int *G = S->G;
 
@@ -19,7 +19,7 @@ int FMMGetEpsilon_FFT(const S4_Simulation *S, const S4_Layer *L, const int n, st
 	int pwr = S->options.lanczos_smoothing_power;
 	if(S->options.use_Lanczos_smoothing){
 		mp1 = GetLanczosSmoothingOrder(S);
-		S4_TRACE("I   Lanczos smoothing order = %f\n", mp1);
+		RS_TRACE("I   Lanczos smoothing order = %f\n", mp1);
 		mp1 *= S->options.lanczos_smoothing_width;
 	}
 
@@ -40,20 +40,20 @@ int FMMGetEpsilon_FFT(const S4_Simulation *S, const S4_Layer *L, const int n, st
 			ngrid[i] = fft_next_fast_size(ngrid[i]);
 		}
 	}
-	S4_TRACE("I  FFT type epsilon on %d x %d grid\n", ngrid[0], ngrid[1]);
+	RS_TRACE("I  FFT type epsilon on %d x %d grid\n", ngrid[0], ngrid[1]);
 	const int ng2 = ngrid[0]*ngrid[1];
 	const double ing2 = 1./ng2;
 	// The grid needs to hold 5 matrix elements: xx,xy,yx,yy,zz
 	// We actually make 5 different grids to facilitate the fft routines
 
-	std::complex<double> *work = (std::complex<double>*)S4_malloc(sizeof(std::complex<double>)*(6*ng2));
+	std::complex<double> *work = (std::complex<double>*)RS_malloc(sizeof(std::complex<double>)*(6*ng2));
 	std::complex<double>*fxx = work;
 	std::complex<double>*fxy = fxx + ng2;
 	std::complex<double>*fyx = fxy + ng2;
 	std::complex<double>*fyy = fyx + ng2;
 	std::complex<double>*fzz = fyy + ng2;
 	std::complex<double>*Fto = fzz + ng2;
-	double *discval = (double*)S4_malloc(sizeof(double)*(L->pattern.nshapes+1));
+	double *discval = (double*)RS_malloc(sizeof(double)*(L->pattern.nshapes+1));
 
 	fft_plan plans[5];
 	for(int i = 0; i <= 4; ++i){
@@ -75,10 +75,10 @@ int FMMGetEpsilon_FFT(const S4_Simulation *S, const S4_Layer *L, const int n, st
 					++nnz;
 				}
 			}
-//S4_TRACE("I   %d,%d nnz = %d\n", ii[0], ii[1], nnz);
+//RS_TRACE("I   %d,%d nnz = %d\n", ii[0], ii[1], nnz);
 
 			if(nnz < 2){ // just one material
-				const S4_Material *M;
+				const RS_Material *M;
 				if(0 == imat[0]){
 					M = &S->material[L->material];
 				}else{
@@ -115,7 +115,7 @@ int FMMGetEpsilon_FFT(const S4_Simulation *S, const S4_Layer *L, const int n, st
 					fzz[si1+si0*ngrid[1]] = 0;
 					for(int i = 0; i <= L->pattern.nshapes; ++i){
 						if(0 == discval[i]){ continue; }
-						const S4_Material *M;
+						const RS_Material *M;
 						if(0 == i){
 							M = &S->material[L->material];
 						}else{
@@ -208,7 +208,7 @@ fzz[si1+si0*ngrid[1]].real(), fzz[si1+si0*ngrid[1]].imag()
 	}
 	//free(fftcfg);
 
-	S4_free(discval);
-	S4_free(work);
+	RS_free(discval);
+	RS_free(work);
 	return 0;
 }

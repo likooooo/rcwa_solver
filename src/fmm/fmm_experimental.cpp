@@ -1,26 +1,26 @@
 #include <config.h>
 
 #include <cmath>
-#include <S4.h>
+#include <RS.h>
 #include "RNP/TBLAS.h"
 #include "RNP/LinearSolve.h"
 #include "fmm.h"
 
 #include <limits>
 
-int FMMGetEpsilon_Experimental(const S4_Simulation *S, const S4_Layer *L, const int n, std::complex<double> *Epsilon2, std::complex<double> *Epsilon_inv){
+int FMMGetEpsilon_Experimental(const RS_Simulation *S, const RS_Layer *L, const int n, std::complex<double> *Epsilon2, std::complex<double> *Epsilon_inv){
 	const int n2 = 2*n;
 	const int *G = S->G;
 	const int ndim = (0 == S->Lr[2] && 0 == S->Lr[3]) ? 1 : 2;
-	double *ivalues = (double*)S4_malloc(sizeof(double)*(2+10)*(L->pattern.nshapes+1));
+	double *ivalues = (double*)RS_malloc(sizeof(double)*(2+10)*(L->pattern.nshapes+1));
 	double *values = ivalues + 2*(L->pattern.nshapes+1);
 
-	S4_TRACE("I  Experimental epsilon\n");
+	RS_TRACE("I  Experimental epsilon\n");
 
 	// Get all the dielectric tensors
 	bool have_tensor = false;
 	for(int i = -1; i < L->pattern.nshapes; ++i){
-		const S4_Material *M;
+		const RS_Material *M;
 		if(-1 == i){
 			M = &S->material[L->material];
 		}else{
@@ -68,7 +68,7 @@ int FMMGetEpsilon_Experimental(const S4_Simulation *S, const S4_Layer *L, const 
 				Epsilon_inv[i+j*n] = std::complex<double>(ft[0],ft[1]);
 			}
 		}
-		S4_TRACE("I  Epsilon(0,0) = %f,%f [omega=%f]\n", Epsilon2[0].real(), Epsilon2[0].imag(), S->omega[0]);
+		RS_TRACE("I  Epsilon(0,0) = %f,%f [omega=%f]\n", Epsilon2[0].real(), Epsilon2[0].imag(), S->omega[0]);
 
 		// Upper block of diagonal of Epsilon2 is already Epsilon
 		RNP::TBLAS::CopyMatrix<'A'>(n,n,&Epsilon2[0+0*n2],n2, &Epsilon2[n+n*n2],n2);
@@ -78,7 +78,7 @@ int FMMGetEpsilon_Experimental(const S4_Simulation *S, const S4_Layer *L, const 
 	}else{ // have tensor dielectric
 		const int ldv = 2*(1+L->pattern.nshapes);
 		for(int i = -1; i < L->pattern.nshapes; ++i){
-			const S4_Material *M;
+			const RS_Material *M;
 			if(-1 == i){
 				M = &S->material[L->material];
 			}else{
@@ -153,7 +153,7 @@ int FMMGetEpsilon_Experimental(const S4_Simulation *S, const S4_Layer *L, const 
 		}
 	}
 
-	S4_free(ivalues);
+	RS_free(ivalues);
 
 	return 0;
 }

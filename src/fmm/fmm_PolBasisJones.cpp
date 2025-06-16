@@ -1,7 +1,7 @@
 #include <config.h>
 
 #include <cmath>
-#include <S4.h>
+#include <RS.h>
 #include "RNP/TBLAS.h"
 #include "RNP/LinearSolve.h"
 #include "fmm.h"
@@ -61,12 +61,12 @@ static void vfield_to_Jones_vector(double v[2], std::complex<double> j[2]){
 //       [ -ux uy* ]
 // where u is the Jones vector field, and each of the 4 blocks are the
 // Fourier transformed matrices.
-int FMMGetEpsilon_PolBasisJones(const S4_Simulation *S, const S4_Layer *L, const int n, std::complex<double> *Epsilon2, std::complex<double> *Epsilon_inv){
+int FMMGetEpsilon_PolBasisJones(const RS_Simulation *S, const RS_Layer *L, const int n, std::complex<double> *Epsilon2, std::complex<double> *Epsilon_inv){
 	double mp1 = 0;
 	int pwr = S->options.lanczos_smoothing_power;
 	if(S->options.use_Lanczos_smoothing){
 		mp1 = GetLanczosSmoothingOrder(S);
-		S4_TRACE("I   Lanczos smoothing order = %f\n", mp1);
+		RS_TRACE("I   Lanczos smoothing order = %f\n", mp1);
 		mp1 *= S->options.lanczos_smoothing_width;
 	}
 
@@ -77,13 +77,13 @@ int FMMGetEpsilon_PolBasisJones(const S4_Simulation *S, const S4_Layer *L, const
 	const double unit_cell_size = Simulation_GetUnitCellSize(S);
 	const int *G = S->G;
 	const int ndim = (0 == S->Lr[2] && 0 == S->Lr[3]) ? 1 : 2;
-	double *ivalues = (double*)S4_malloc(sizeof(double)*(2+10)*(L->pattern.nshapes+1));
+	double *ivalues = (double*)RS_malloc(sizeof(double)*(2+10)*(L->pattern.nshapes+1));
 	double *values = ivalues + 2*(L->pattern.nshapes+1);
 
 	// Get all the dielectric tensors
 	//bool have_tensor = false;
 	for(int i = -1; i < L->pattern.nshapes; ++i){
-		const S4_Material *M;
+		const RS_Material *M;
 		if(-1 == i){
 			M = &S->material[L->material];
 		}else{
@@ -123,7 +123,7 @@ int FMMGetEpsilon_PolBasisJones(const S4_Simulation *S, const S4_Layer *L, const
 		}
 		const int ng2 = ngrid[0]*ngrid[1];
 
-		work = (std::complex<double>*)S4_malloc(
+		work = (std::complex<double>*)RS_malloc(
 			sizeof(std::complex<double>)*(5*nn + 4*ng2) +
 			sizeof(size_t)*(2*n));
 		P = work;
@@ -137,7 +137,7 @@ int FMMGetEpsilon_PolBasisJones(const S4_Simulation *S, const S4_Layer *L, const
 		const double ing2 = 1./(double)ng2;
 		int ii[2];
 
-		double *vfield = (double*)S4_malloc(sizeof(double)*2*ng2);
+		double *vfield = (double*)RS_malloc(sizeof(double)*2*ng2);
 		if(0 == S->Lr[2] && 0 == S->Lr[3]){ // 1D, generate the trivial field
 			double nv[2] = {-S->Lr[1], S->Lr[0]};
 			double nva = hypot(nv[0],nv[1]);
@@ -150,14 +150,14 @@ int FMMGetEpsilon_PolBasisJones(const S4_Simulation *S, const S4_Layer *L, const
 			}
 		}else{
 			int error = 0;
-			S4_VERB(1, "Generating polarization vector field of size %d x %d\n", ngrid[0], ngrid[1]);
+			RS_VERB(1, "Generating polarization vector field of size %d x %d\n", ngrid[0], ngrid[1]);
 			error = Pattern_GenerateFlowField(&L->pattern, 0, S->Lr, ngrid[0], ngrid[1], vfield);
 
 			if(0 != error){
-				S4_TRACE("< Simulation_ComputeLayerBands (failed; Pattern_GenerateFlowField returned %d) [omega=%f]\n", error, S->omega[0]);
-				if(NULL != vfield){ S4_free(vfield); }
-				if(NULL != work){ S4_free(work); }
-				if(NULL != ivalues){ S4_free(ivalues); }
+				RS_TRACE("< Simulation_ComputeLayerBands (failed; Pattern_GenerateFlowField returned %d) [omega=%f]\n", error, S->omega[0]);
+				if(NULL != vfield){ RS_free(vfield); }
+				if(NULL != work){ RS_free(work); }
+				if(NULL != ivalues){ RS_free(ivalues); }
 				return error;
 			}
 		}
@@ -297,17 +297,17 @@ int FMMGetEpsilon_PolBasisJones(const S4_Simulation *S, const S4_Layer *L, const
 		}
 
 		fft_plan_destroy(plan);
-		if(NULL != vfield){ S4_free(vfield); }
+		if(NULL != vfield){ RS_free(vfield); }
 
 		// do LU decomposition on P
 		RNP::TLASupport::LUDecomposition(n2,n2, P,n2, ipiv);
 
 		// Add to cache (assume that ipiv is immediately after P
-		Simulation_AddFieldToCache((S4_Simulation*)S, L, S->n_G, P, 4*nn+2*n);
+		Simulation_AddFieldToCache((RS_Simulation*)S, L, S->n_G, P, 4*nn+2*n);
 	}else{
 		// P contains the cached version
-		//work = (std::complex<double>*)S4_malloc(sizeof(std::complex<double>)*2*nn);
-		work = (std::complex<double>*)S4_malloc(sizeof(std::complex<double>)*nn);
+		//work = (std::complex<double>*)RS_malloc(sizeof(std::complex<double>)*2*nn);
+		work = (std::complex<double>*)RS_malloc(sizeof(std::complex<double>)*nn);
 		Eta = work;
 		ipiv = (size_t*)(P + 4*nn);
 	}
@@ -343,9 +343,9 @@ int FMMGetEpsilon_PolBasisJones(const S4_Simulation *S, const S4_Layer *L, const
 	RNP::TLASupport::ApplyPermutations<'L','N'>(n2,n2, Epsilon2,n2, ipiv);
 	RNP::TLASupport::ApplyPermutations<'R','I'>(n2,n2, Epsilon2,n2, ipiv);
 
-	if(NULL != work){ S4_free(work); }
+	if(NULL != work){ RS_free(work); }
 
-	S4_free(ivalues);
+	RS_free(ivalues);
 
 	return 0;
 }

@@ -31,7 +31,7 @@ link_libraries     (PkgConfig::FFTWF)
 file(GLOB SOURCES_FILES
     src/main.cpp
     src/Eigensystems.cpp
-    src/S4.cpp
+    src/RS.cpp
     src/gsel.c
     src/sort.c
     src/numalloc.c
@@ -76,8 +76,8 @@ install(TARGETS rcwasolver
     INCLUDES DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
 )
 
-install(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/S4/
-    DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/S4
+install(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/RS/
+    DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/RS
     FILES_MATCHING PATTERN "*.h"
 )
 

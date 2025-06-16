@@ -1,19 +1,19 @@
 #pragma once
 
 /************************* Fundamental types *************************/
-typedef double S4_real;
+typedef double RS_real;
 
 #ifdef __cplusplus
 #include <complex>
-typedef std::complex<S4_real> S4_complex;
+typedef std::complex<RS_real> RS_complex;
 #endif
 
-/***************************** S4 types ******************************/
-typedef int S4_MaterialID;
-typedef int S4_LayerID;
-typedef struct S4_Simulation_ S4_Simulation;
+/***************************** RS types ******************************/
+typedef int RS_MaterialID;
+typedef int RS_LayerID;
+typedef struct RS_Simulation_ RS_Simulation;
 
-typedef struct S4_Options_{
+typedef struct RS_Options_{
 	int use_discretized_epsilon;
 
 	// Set use_subpixel_smoothing to nonzero if subpixel smoothing should
@@ -80,15 +80,15 @@ typedef struct S4_Options_{
 	// be stored in memory when possible.
 	int use_less_memory;
 
-	S4_real lanczos_smoothing_width;
+	RS_real lanczos_smoothing_width;
 	int lanczos_smoothing_power;
-} S4_Options;
+} RS_Options;
 
-#define S4_MSG_ERROR    1
-#define S4_MSG_WARNING  3
-#define S4_MSG_INFO     5
-#define S4_MSG_STATUS   9
-typedef int (*S4_message_handler)(
+#define RS_MSG_ERROR    1
+#define RS_MSG_WARNING  3
+#define RS_MSG_INFO     5
+#define RS_MSG_STATUS   9
+typedef int (*RS_message_handler)(
 	void *data, const char *fname, int level, const char *msg
 );
 
@@ -101,169 +101,169 @@ extern "C" {
 /********************************************************************/
 /* Simulation object constructor, destructor, and copy constructor. */
 /********************************************************************/
-S4_Simulation* S4_Simulation_New(const S4_real *Lr, unsigned int nG, int *G);
-void S4_Simulation_Destroy(S4_Simulation *S);
-S4_Simulation* S4_Simulation_Clone(const S4_Simulation *S);
+RS_Simulation* RS_Simulation_New(const RS_real *Lr, unsigned int nG, int *G);
+void RS_Simulation_Destroy(RS_Simulation *S);
+RS_Simulation* RS_Simulation_Clone(const RS_Simulation *S);
 
-S4_message_handler S4_Simulation_SetMessageHandler(
-	S4_Simulation *S, S4_message_handler handler, void *data
+RS_message_handler RS_Simulation_SetMessageHandler(
+	RS_Simulation *S, RS_message_handler handler, void *data
 );
 
-unsigned int S4_Lattice_Count(const S4_real *Lr, unsigned int nG);
-int S4_Lattice_Reciprocate(const S4_real *Lr, S4_real *Lk);
+unsigned int RS_Lattice_Count(const RS_real *Lr, unsigned int nG);
+int RS_Lattice_Reciprocate(const RS_real *Lr, RS_real *Lk);
 
 /**********************************/
 /* Simulation getters and setters */
 /**********************************/
-int S4_Simulation_SetLattice(S4_Simulation *S, const S4_real *Lr);
-int S4_Simulation_GetLattice(const S4_Simulation *S, S4_real *Lr);
-int S4_Simulation_SetBases(S4_Simulation *S, unsigned int nG, int *G);
-int S4_Simulation_GetBases(const S4_Simulation *S, int *G);
-int S4_Simulation_SetFrequency(S4_Simulation *S, const S4_real *freq_complex);
-int S4_Simulation_GetFrequency(const S4_Simulation *S, S4_real *freq_complex);
-int S4_Simulation_LayerCount(const S4_Simulation *S);
-int S4_Simulation_TotalThickness(const S4_Simulation *S, S4_real *thickness);
+int RS_Simulation_SetLattice(RS_Simulation *S, const RS_real *Lr);
+int RS_Simulation_GetLattice(const RS_Simulation *S, RS_real *Lr);
+int RS_Simulation_SetBases(RS_Simulation *S, unsigned int nG, int *G);
+int RS_Simulation_GetBases(const RS_Simulation *S, int *G);
+int RS_Simulation_SetFrequency(RS_Simulation *S, const RS_real *freq_complex);
+int RS_Simulation_GetFrequency(const RS_Simulation *S, RS_real *freq_complex);
+int RS_Simulation_LayerCount(const RS_Simulation *S);
+int RS_Simulation_TotalThickness(const RS_Simulation *S, RS_real *thickness);
 
 /******************************/
 /* Material related functions */
 /******************************/
-#define S4_MATERIAL_TYPE_SCALAR_REAL      2
-#define S4_MATERIAL_TYPE_SCALAR_COMPLEX   3
-#define S4_MATERIAL_TYPE_XYTENSOR_REAL    4
-#define S4_MATERIAL_TYPE_XYTENSOR_COMPLEX 5
-S4_MaterialID S4_Simulation_SetMaterial(
-	S4_Simulation *S, S4_MaterialID M, const char *name, int type, const S4_real *eps
+#define RS_MATERIAL_TYPE_SCALAR_REAL      2
+#define RS_MATERIAL_TYPE_SCALAR_COMPLEX   3
+#define RS_MATERIAL_TYPE_XYTENSOR_REAL    4
+#define RS_MATERIAL_TYPE_XYTENSOR_COMPLEX 5
+RS_MaterialID RS_Simulation_SetMaterial(
+	RS_Simulation *S, RS_MaterialID M, const char *name, int type, const RS_real *eps
 );
-S4_MaterialID S4_Simulation_GetMaterialByName(
-	const S4_Simulation *S, const char *name
+RS_MaterialID RS_Simulation_GetMaterialByName(
+	const RS_Simulation *S, const char *name
 );
-int S4_Material_GetName(
-	const S4_Simulation *S, S4_MaterialID M, const char **name
+int RS_Material_GetName(
+	const RS_Simulation *S, RS_MaterialID M, const char **name
 );
-int S4_Material_GetEpsilon(
-	const S4_Simulation *S, S4_MaterialID M, S4_real *eps
+int RS_Material_GetEpsilon(
+	const RS_Simulation *S, RS_MaterialID M, RS_real *eps
 );
 
 /***************************/
 /* Layer related functions */
 /***************************/
-S4_LayerID S4_Simulation_SetLayer(
-	S4_Simulation *S, S4_LayerID L, const char *name, const S4_real *thickness,
-	S4_LayerID copy, S4_MaterialID material
+RS_LayerID RS_Simulation_SetLayer(
+	RS_Simulation *S, RS_LayerID L, const char *name, const RS_real *thickness,
+	RS_LayerID copy, RS_MaterialID material
 ); /*
 if NULL == L:
 	Adds a new layer with optional name and thickness
 if NULL != L:
 	if NULL == name, then the name is not changed.
 */
-S4_LayerID S4_Simulation_GetLayerByName(
-	const S4_Simulation *S, const char *name
+RS_LayerID RS_Simulation_GetLayerByName(
+	const RS_Simulation *S, const char *name
 );
-int S4_Layer_GetName(
-	const S4_Simulation *S, S4_LayerID L, const char **name
+int RS_Layer_GetName(
+	const RS_Simulation *S, RS_LayerID L, const char **name
 );
-int S4_Layer_GetThickness(
-	const S4_Simulation *S, S4_LayerID L, S4_real *thickness
+int RS_Layer_GetThickness(
+	const RS_Simulation *S, RS_LayerID L, RS_real *thickness
 );
 
 
 /**********************************/
 /* Layer region related functions */
 /**********************************/
-int S4_Layer_ClearRegions(
-	S4_Simulation *S, S4_LayerID L
+int RS_Layer_ClearRegions(
+	RS_Simulation *S, RS_LayerID L
 );
-#define S4_REGION_TYPE_INTERVAL   11
-#define S4_REGION_TYPE_RECTANGLE  12
-#define S4_REGION_TYPE_ELLIPSE    13
-#define S4_REGION_TYPE_CIRCLE     14
-int S4_Layer_SetRegionHalfwidths(
-	S4_Simulation *S, S4_LayerID L, S4_MaterialID M,
-	int type, const S4_real *halfwidths,
-	const S4_real *center, const S4_real *angle_frac
+#define RS_REGION_TYPE_INTERVAL   11
+#define RS_REGION_TYPE_RECTANGLE  12
+#define RS_REGION_TYPE_ELLIPSE    13
+#define RS_REGION_TYPE_CIRCLE     14
+int RS_Layer_SetRegionHalfwidths(
+	RS_Simulation *S, RS_LayerID L, RS_MaterialID M,
+	int type, const RS_real *halfwidths,
+	const RS_real *center, const RS_real *angle_frac
 );
 
-#define S4_REGION_TYPE_POLYGON    21
-int S4_Layer_SetRegionVertices(
-	S4_Simulation *S, S4_LayerID L, S4_MaterialID M,
-	int type, int nv, const S4_real *v,
-	const S4_real *center, const S4_real *angle_frac
+#define RS_REGION_TYPE_POLYGON    21
+int RS_Layer_SetRegionVertices(
+	RS_Simulation *S, RS_LayerID L, RS_MaterialID M,
+	int type, int nv, const RS_real *v,
+	const RS_real *center, const RS_real *angle_frac
 );
-int S4_Layer_IsCopy(S4_Simulation *S, S4_LayerID L);
+int RS_Layer_IsCopy(RS_Simulation *S, RS_LayerID L);
 
 /********************************/
 /* Excitation related functions */
 /********************************/
 
-int S4_Simulation_ExcitationPlanewave(
-	S4_Simulation *S, const S4_real *kdir, const S4_real *udir,
-	const S4_real *amp_u, const S4_real *amp_v
+int RS_Simulation_ExcitationPlanewave(
+	RS_Simulation *S, const RS_real *kdir, const RS_real *udir,
+	const RS_real *amp_u, const RS_real *amp_v
 );
-int S4_Simulation_ExcitationExterior(S4_Simulation *S, int n, const int *exg, const double *ex);
-int S4_Simulation_ExcitationDipole(S4_Simulation *S, const double k[2], const char *layer, const double pos[2], const double moment[6]);
+int RS_Simulation_ExcitationExterior(RS_Simulation *S, int n, const int *exg, const double *ex);
+int RS_Simulation_ExcitationDipole(RS_Simulation *S, const double k[2], const char *layer, const double pos[2], const double moment[6]);
 
 /***********************************/
 /* Solution hint related functions */
 /***********************************/
-int S4_Simulation_SolveLayer(S4_Simulation *S, S4_LayerID L);
+int RS_Simulation_SolveLayer(RS_Simulation *S, RS_LayerID L);
 
 /****************************/
 /* Output related functions */
 /****************************/
 
-int S4_Simulation_GetPowerFlux(
-	S4_Simulation *S, S4_LayerID layer, const S4_real *offset,
-	S4_real *power
+int RS_Simulation_GetPowerFlux(
+	RS_Simulation *S, RS_LayerID layer, const RS_real *offset,
+	RS_real *power
 );
-int S4_Simulation_GetPowerFluxes(
-	S4_Simulation *S, S4_LayerID layer, const S4_real *offset,
-	S4_real *power
+int RS_Simulation_GetPowerFluxes(
+	RS_Simulation *S, RS_LayerID layer, const RS_real *offset,
+	RS_real *power
 );
 // waves should be size 2*11*S->n_G
 // Each wave is length 11:
 //   { kx, ky, kzr, kzi, ux, uy, uz, cur, cui, cvr, cvi }
 // The first n_G waves are forward propagating, the second are backward.
 // Each set of n_G waves are ordered in the basis ordering.
-int S4_Simulation_GetWaves(S4_Simulation *S, S4_LayerID layer, S4_real *wave);
+int RS_Simulation_GetWaves(RS_Simulation *S, RS_LayerID layer, RS_real *wave);
 
-int S4_Simulation_GetFieldPlane(
-	S4_Simulation *S, const int nxy[2], const S4_real *xyz0,
-	S4_real *E, S4_real *H
+int RS_Simulation_GetFieldPlane(
+	RS_Simulation *S, const int nxy[2], const RS_real *xyz0,
+	RS_real *E, RS_real *H
 );
 
-int S4_Simulation_GetEpsilon(
-	S4_Simulation *S, int nxy[2], const S4_real *xyz0, S4_real *eps
+int RS_Simulation_GetEpsilon(
+	RS_Simulation *S, int nxy[2], const RS_real *xyz0, RS_real *eps
 ); // eps is {real,imag}
 
 // Returns a solution error code
 // Tint is a vector of time averaged stress tensor integral
-int S4_Simulation_GetStressTensorIntegral(
-	S4_Simulation *S, S4_LayerID layer, const S4_real *offset,
-	S4_real *Tint
+int RS_Simulation_GetStressTensorIntegral(
+	RS_Simulation *S, RS_LayerID layer, const RS_real *offset,
+	RS_real *Tint
 );
 
 // Returns a solution error code
 // which can be 'U', 'E', 'H', 'e'
 // 'E' is epsilon*|E|^2, 'H' is |H|^2, 'e' is |E|^2, 'U' is 'E'+'H'
-#define S4_VOLUME_INTEGRAL_ENERGY_E  'E'
-#define S4_VOLUME_INTEGRAL_ENERGY_H  'H'
-#define S4_VOLUME_INTEGRAL_ENERGY    'U'
-#define S4_VOLUME_INTEGRAL_E_SQUARED 'e'
-int S4_Simulation_GetLayerVolumeIntegral(
-	S4_Simulation *S, S4_LayerID layer, int which, S4_real *integral
+#define RS_VOLUME_INTEGRAL_ENERGY_E  'E'
+#define RS_VOLUME_INTEGRAL_ENERGY_H  'H'
+#define RS_VOLUME_INTEGRAL_ENERGY    'U'
+#define RS_VOLUME_INTEGRAL_E_SQUARED 'e'
+int RS_Simulation_GetLayerVolumeIntegral(
+	RS_Simulation *S, RS_LayerID layer, int which, RS_real *integral
 );
-int S4_Simulation_GetLayerZIntegral(
-	S4_Simulation *S, S4_LayerID layer, const S4_real *r,
-	S4_real *integral
+int RS_Simulation_GetLayerZIntegral(
+	RS_Simulation *S, RS_LayerID layer, const RS_real *r,
+	RS_real *integral
 );
 
 /***************************************/
 /* Mode/band-solving related functions */
 /***************************************/
 // Determinant is (rmant[0]+i*rmant[1])*base^expo
-int S4_Simulation_GetSMatrixDeterminant(
-	S4_Simulation *S, const S4_real *k,
-	S4_real *rmant, S4_real *base, int *expo
+int RS_Simulation_GetSMatrixDeterminant(
+	RS_Simulation *S, const RS_real *k,
+	RS_real *rmant, RS_real *base, int *expo
 );
 
 
@@ -271,4 +271,4 @@ int S4_Simulation_GetSMatrixDeterminant(
 } /* extern "C" */
 #endif
 
-#include "S4_internal.h"
+#include "RS_internal.h"
