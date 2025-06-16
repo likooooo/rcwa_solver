@@ -27,8 +27,10 @@ pkg_search_module(FFTWF REQUIRED fftw3f IMPORTED_TARGET)
 include_directories(PkgConfig::FFTWF )
 link_libraries     (PkgConfig::FFTWF)
 
-add_definitions(-DENABLE_RS_TRACE)
-
+option(ENABLE_RS_TRACE "Enable RS tracing functionality" OFF)
+if(ENABLE_RS_TRACE)
+    add_definitions(-DENABLE_RS_TRACE)
+endif()
 # source file
 file(GLOB SOURCES_FILES
     src/main.cpp
