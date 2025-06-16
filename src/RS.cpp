@@ -2909,8 +2909,8 @@ int Simulation_GetField(RS_Simulation *S, const double r[3], double fE[6], doubl
 }
 
 int Simulation_GetEField(RS_Simulation *S, const double r[3], std::complex<double> efield[3], int solvetype){
-	RS_TRACE("> Simulation_GetField(S=%p, r=%p (%f,%f,%f), fE=%p)\n",
-		S, r, (NULL == r ? 0 : r[0]), (NULL == r ? 0 : r[1]), (NULL == r ? 0 : r[2]), fE, solvetype);
+	RS_TRACE("> Simulation_GetField(S=%p, r=%p (%f,%f,%f), solvetype=%d)\n",
+		S, r, (NULL == r ? 0 : r[0]), (NULL == r ? 0 : r[1]), (NULL == r ? 0 : r[2]), solvetype);
 	if(NULL == S){
 		RS_TRACE("< Simulation_GetField (failed; S == NULL)\n");
 		return -1;
@@ -3051,7 +3051,7 @@ int Simulation_GetFieldPlane(RS_Simulation *S, int nxy[2], double zz, double *E,
 }
 
 int Simulation_GetEFieldPlane(RS_Simulation *S, int nxy[2], double zz, double *E, int solvetype){
-	RS_TRACE("> Simulation_GetFieldPlane(S=%p, nxy=%p (%d,%d), z=%f, E=%p, H=%p)\n",
+	RS_TRACE("> Simulation_GetFieldPlane(S=%p, nxy=%p (%d,%d), z=%f, E=%p, solvetype=%d)\n",
 		S, nxy, (NULL == nxy ? 0 : nxy[0]), (NULL == nxy ? 0 : nxy[1]), zz, E, solvetype);
 	if(NULL == S){
 		RS_TRACE("< Simulation_GetFieldPlane (failed; S == NULL)\n");

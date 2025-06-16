@@ -27,6 +27,8 @@ pkg_search_module(FFTWF REQUIRED fftw3f IMPORTED_TARGET)
 include_directories(PkgConfig::FFTWF )
 link_libraries     (PkgConfig::FFTWF)
 
+add_definitions(-DENABLE_RS_TRACE)
+
 # source file
 file(GLOB SOURCES_FILES
     src/main.cpp

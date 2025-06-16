@@ -27,9 +27,6 @@ extern "C" {
 # define RS_CHECK if(0)
 #endif
 
-
-
-
 #define RS_VERB(verb,...) \
 	do{ \
 		if(S->options.verbosity >= verb){ \
