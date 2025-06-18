@@ -1,5 +1,3 @@
-#include "config.h"
-
 #define _USE_MATH_DEFINES
 #include "RS.h"
 #include <cstdlib>
@@ -3446,7 +3444,9 @@ int Simulation_MakeExcitationPlanewave(RS_Simulation *S, const double angle[2], 
 	const double s_p = sin(pol_p[1]);
 	S->k[0] = c1*s0*root_eps;
 	S->k[1] = s1*s0*root_eps;
-
+	
+	//== TODO : bug here ???
+	// swap pol_s and pol_p
 	S->exc.sub.planewave.hx[0] = -c0*c1*pol_s[0]*c_s - s1*pol_p[0]*c_p;
 	S->exc.sub.planewave.hx[1] = -c0*c1*pol_s[0]*s_s - s1*pol_p[0]*s_p;
 	S->exc.sub.planewave.hy[0] = -c0*s1*pol_s[0]*c_s + c1*pol_p[0]*c_p;

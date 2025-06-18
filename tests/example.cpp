@@ -1,16 +1,5 @@
-/* 2024, use RS, test RCWA
--- 1D test case: output E
--- Fig. 3b of Victor Liu, Michelle Povinelli, and Shanhui Fan, "Resonance-enhanced optical forces between coupled photonic crystal slabs", Optics Express, Vol. 17, No. 24, 2009
-*/
-
-//#include "config.h"
-
 #include <iostream>
 #include "RS.h"
-
-#ifndef M_PI
-#define M_PI 3.14159265358979323846
-#endif
 
 int main()
 {
@@ -18,7 +7,7 @@ int main()
 	std::cout << "Here begin"  << std::endl;
 	
 	// set the lattice vectors (1,0) and (0,0) -- 1D lattice
-	RS_real Lr[4] = { 1, 0, 0, 0 };
+	RS_real Lr[4] = { 1, 0, 0, 1 };
 	unsigned int nG = 1;
 	unsigned int argflag = 0;
 	RS_Simulation PS0;
@@ -27,6 +16,7 @@ int main()
 	pS= &ps1;
 	*pS = RS_Simulation_New(Lr, nG, NULL);
 	RS_Simulation *S = *pS;
+	S->options.use_less_memory = true;
 	RS_Simulation_SetLattice(S, Lr);
 	std::cout << "Here SetLattice: Lr is    " << Lr[0] << "," << Lr[1] << "," << Lr[2]<< "," << Lr[3]<<  std::endl;
 
@@ -132,7 +122,9 @@ int main()
 	int ret6;
 	double r[3], fE[6];
 	for (double x=-0.5; x < 3.5; x += 0.02){
-		for (double z=-1; z < 1.5; z += 0.02){
+		double z = -1;
+		// for (double z=-1; z < 1.5; z += 0.02)
+		{
 			r[0] = x;
 			r[1] = 0;
 			r[2] = z;

@@ -33,7 +33,6 @@ if(ENABLE_RS_TRACE)
 endif()
 # source file
 file(GLOB SOURCES_FILES
-    src/main.cpp
     src/Eigensystems.cpp
     src/RS.cpp
     src/gsel.c

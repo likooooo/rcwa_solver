@@ -1,5 +1,3 @@
-#include <config.h>
-
 #include <cstdio>
 #include <cmath>
 #include <RS.h>

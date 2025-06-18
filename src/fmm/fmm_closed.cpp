@@ -1,5 +1,3 @@
-#include <config.h>
-
 #include <cmath>
 #include <RS.h>
 #include "RNP/TBLAS.h"
