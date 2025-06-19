@@ -79,15 +79,39 @@ install(TARGETS rcwasolver
     INCLUDES DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
 )
 
-install(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/RS/
+# install(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/RS/
+#     DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/RS
+#     FILES_MATCHING PATTERN "*.h"
+# )
+# 安装主头文件
+install(FILES 
+    ${CMAKE_CURRENT_SOURCE_DIR}/include/RS.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/include/RS_internal.h
     DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/RS
-    FILES_MATCHING PATTERN "*.h"
+)
+# 安装pattern目录下的头文件
+install(FILES 
+    ${CMAKE_CURRENT_SOURCE_DIR}/include/pattern/pattern.h
+    DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/RS/pattern
 )
 
-install(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/pkgconfig/
-    DESTINATION ${CMAKE_INSTALL_LIBDIR}/pkgconfig
-    FILES_MATCHING PATTERN "*.pc"
+# 创建 rcwasolver.pc.in 模板文件
+configure_file(
+    "${CMAKE_CURRENT_SOURCE_DIR}/pkgconfig/rcwasolver.pc.in"
+    "${CMAKE_CURRENT_BINARY_DIR}/rcwasolver.pc"
+    @ONLY
 )
+
+# 安装 pc 文件
+install(FILES "${CMAKE_CURRENT_BINARY_DIR}/rcwasolver.pc"
+    DESTINATION "${CMAKE_INSTALL_LIBDIR}/pkgconfig"
+)
+# install(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/pkgconfig/
+#     DESTINATION ${CMAKE_INSTALL_LIBDIR}/pkgconfig
+#     FILES_MATCHING PATTERN "*.pc"
+# )
+
+
 
 if(NOT TARGET uninstall)
   configure_file(
@@ -99,7 +123,7 @@ if(NOT TARGET uninstall)
     COMMAND ${CMAKE_COMMAND} -P ${CMAKE_BINARY_DIR}/cmake_uninstall.cmake)
 endif()
 
-set(CPACK_GENERATOR "RPM")
+# 通用打包配置
 set(CPACK_PACKAGE_NAME "rcwasolver")
 set(CPACK_PACKAGE_DESCRIPTION_SUMMARY "Solver for RCWA")
 set(CPACK_PACKAGE_VENDOR "YuWei Optica Inc")
@@ -107,10 +131,74 @@ set(CPACK_PACKAGE_VERSION "1.0.0")
 set(CPACK_PACKAGE_VERSION_MAJOR "1")
 set(CPACK_PACKAGE_VERSION_MINOR "0")
 set(CPACK_PACKAGE_VERSION_PATCH "0")
-set(CPACK_PACKAGE_RELEASE "0")
-set(CPACK_PACKAGE_FILE_NAME ${CPACK_PACKAGE_NAME}-${CPACK_PACKAGE_VERSION}-${CPACK_PACKAGE_RELEASE}.${CMAKE_HOST_SYSTEM_PROCESSOR})
-set(CPACK_RPM_PACKAGE_GROUP "rcwasolver")
-set(CPACK_RPM_PACKAGE_LICENSE "")
+set(CPACK_PACKAGE_FILE_NAME "${CPACK_PACKAGE_NAME}-${CPACK_PACKAGE_VERSION}-${CMAKE_HOST_SYSTEM_PROCESSOR}")
+
+# 根据系统类型设置不同的打包生成器和选项
+if(EXISTS "/etc/redhat-release")  # CentOS/RHEL
+    set(CPACK_GENERATOR "RPM")
+    set(CPACK_PACKAGE_RELEASE "0")
+    set(CPACK_RPM_PACKAGE_GROUP "rcwasolver")
+    set(CPACK_RPM_PACKAGE_LICENSE "")
+    set(CPACK_RPM_PACKAGE_REQUIRES "")
+    set(CPACK_RPM_PACKAGE_AUTOREQ "no")
+elseif(EXISTS "/etc/debian_version")  # Ubuntu/Debian
+    set(CPACK_GENERATOR "DEB")
+    set(CPACK_DEBIAN_PACKAGE_MAINTAINER "YuWei Optica Inc")
+    set(CPACK_DEBIAN_PACKAGE_SHLIBDEPS ON)
+    set(CPACK_DEBIAN_PACKAGE_DEPENDS "")
+    set(CPACK_DEBIAN_PACKAGE_SECTION "science")
+    set(CPACK_DEBIAN_PACKAGE_PRIORITY "optional")
+else()  # 其他系统使用TGZ作为后备
+    set(CPACK_GENERATOR "TGZ")
+endif()
+
+# 设置安装前缀
+set(CPACK_PACKAGING_INSTALL_PREFIX "/usr/local")
 
 include(CPack)
+
+
+# # installer
+# include(GNUInstallDirs)
+# install(TARGETS rcwasolver
+#     LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
+#     ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
+#     RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
+#     INCLUDES DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
+# )
+
+# install(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/RS/
+#     DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/RS
+#     FILES_MATCHING PATTERN "*.h"
+# )
+
+# install(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/pkgconfig/
+#     DESTINATION ${CMAKE_INSTALL_LIBDIR}/pkgconfig
+#     FILES_MATCHING PATTERN "*.pc"
+# )
+
+# if(NOT TARGET uninstall)
+#   configure_file(
+#     "${CMAKE_CURRENT_SOURCE_DIR}/cmake/cmake_uninstall.cmake.in"
+#     "${CMAKE_BINARY_DIR}/cmake_uninstall.cmake"
+#     IMMEDIATE @ONLY)
+
+#   add_custom_target(uninstall
+#     COMMAND ${CMAKE_COMMAND} -P ${CMAKE_BINARY_DIR}/cmake_uninstall.cmake)
+# endif()
+
+# set(CPACK_GENERATOR "RPM")
+# set(CPACK_PACKAGE_NAME "rcwasolver")
+# set(CPACK_PACKAGE_DESCRIPTION_SUMMARY "Solver for RCWA")
+# set(CPACK_PACKAGE_VENDOR "YuWei Optica Inc")
+# set(CPACK_PACKAGE_VERSION "1.0.0")
+# set(CPACK_PACKAGE_VERSION_MAJOR "1")
+# set(CPACK_PACKAGE_VERSION_MINOR "0")
+# set(CPACK_PACKAGE_VERSION_PATCH "0")
+# set(CPACK_PACKAGE_RELEASE "0")
+# set(CPACK_PACKAGE_FILE_NAME ${CPACK_PACKAGE_NAME}-${CPACK_PACKAGE_VERSION}-${CPACK_PACKAGE_RELEASE}.${CMAKE_HOST_SYSTEM_PROCESSOR})
+# set(CPACK_RPM_PACKAGE_GROUP "rcwasolver")
+# set(CPACK_RPM_PACKAGE_LICENSE "")
+
+# include(CPack)
 

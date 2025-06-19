@@ -1,0 +1,9 @@
+prefix=/usr
+libdir=${prefix}/lib64
+includedir=${prefix}/include
+
+Name: RCWASOLVER
+Description: Solver for RCWA
+Version: 1.0.0
+Cflags: -I${includedir}/S4 
+Libs: -L${libdir} -lrcwasolver
